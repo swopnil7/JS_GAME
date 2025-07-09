@@ -246,7 +246,6 @@ class Particle {
   }
 }
 
-
 //-------------Sparks.js--------------
 class Spark{
   constructor (pos, angle, speed, fColor = "white", sColor = "black") {
@@ -336,7 +335,30 @@ class Clouds {
 }
 
 // --------------------- TILEMAP -----------------------
-const NEIGHBOUR_OFFSETS = [[-1,0],[-1,-1],[0,-1],[0,0],[1,0],[0,1],[1,1],[-1,1],[1,-1]];
+//const NEIGHBOUR_OFFSETS = [[-1,0],[-1,-1],[0,-1],[0,0],[1,0],[0,1],[1,1],[-1,1],[1,-1]];
+
+//Caching Offset to avoid regeneration of same Neighbour Offsets
+const OffsetCache = {};
+
+function generateNeighbourOffsets(entitySize, tileSize) {
+  const key = entitySize.join(",") + "|" + tileSize;
+  if (OffsetCache[key]) return OffsetCache[key];
+  //Example Key : "34,34|32"
+  
+  const checkTileX = Math.ceil(entitySize[0] / tileSize);
+  const checkTileY = Math.ceil(entitySize[1] / tileSize);
+  const offsets = [];
+  
+  for (let i = -checkTileX; i <= checkTileX; i++) {
+    for (let j = -checkTileY; j <= checkTileY; j++) {
+      offsets.push([i, j]);
+    }
+  }
+  
+  OffsetCache[key] = offsets;
+  return offsets;
+}
+
 const PHYSICS_TILES = new Set(['grass', 'stone']);
 
 
@@ -404,11 +426,11 @@ class Tilemap {
   return matches;
 }
   
-  tilesAround(pos) {
+  tilesAround(pos, nOffsets) {
     //Corrected tileLoc coordinate flip
     let tileLoc = [Math.floor(pos[0] / this.tileSize), Math.floor(pos[1] / this.tileSize)];
     let tilesAround = [];
-    for (let offset of NEIGHBOUR_OFFSETS) {
+    for (let offset of nOffsets) {
       let key = `${tileLoc[0] + offset[0]};${tileLoc[1] + offset[1]}`;
       if (this.tilemap[key])
       {
@@ -416,8 +438,8 @@ class Tilemap {
       }
     return tilesAround;
   }
-  physicsRectsAround(pos) {
-    return this.tilesAround(pos).filter(t => PHYSICS_TILES.has(t.type))
+  physicsRectsAround(pos, nOffsets) {
+    return this.tilesAround(pos, nOffsets).filter(t => PHYSICS_TILES.has(t.type))
       .map(t => new Rect(t.pos[0]*this.tileSize, t.pos[1]*this.tileSize, this.tileSize, this.tileSize));
   }
   
@@ -479,10 +501,12 @@ class PhysicsEntity {
     this.pos = [...pos];
     this.size = [...size];
     this.velocity = [0, 0];
+    this.xSpeed = 1;
     this.grounded = false;
     this.lastMovement = [0, 0];
     this.collisions = {'up': false, 'down': false, 'left': false, 'right': false};
-    
+    this.NEIGHBOUR_OFFSETS = generateNeighbourOffsets(this.size, this.game.tilemap.tileSize);
+    console.log("Offset count:", this.NEIGHBOUR_OFFSETS.length);
     this.action = '';
     this.animOffset = [0, 0];
     this.sizeOffset = [0, 0];
@@ -509,13 +533,13 @@ class PhysicsEntity {
   //To check which rect is colliding
   //this.collidingTileRect = null;
   
-  const frameMovementX = (movement[0] * 2) + this.velocity[0];
+  const frameMovementX = (movement[0] * this.xSpeed) + this.velocity[0];
   const frameMovementY = movement[1] + this.velocity[1];
   
   // ----- Horizontal movement -----
   this.pos[0] += frameMovementX;
   let rectX = this.rect();
-  for (let rect of tilemap.physicsRectsAround(this.pos)) {
+  for (let rect of tilemap.physicsRectsAround(this.pos, this.NEIGHBOUR_OFFSETS)) {
     if (rectX.collideRect(rect)) {
       if (frameMovementX > 0) {
         this.pos[0] = rect.left() - this.size[0];
@@ -531,7 +555,7 @@ class PhysicsEntity {
   // ----- Vertical movement -----
   this.pos[1] += frameMovementY;
   let rectY = this.rect();
-  for (let rect of tilemap.physicsRectsAround(this.pos)) {
+  for (let rect of tilemap.physicsRectsAround(this.pos, this.NEIGHBOUR_OFFSETS)) {
     if (rectY.collideRect(rect)) {
       if (frameMovementY > 0) {
         this.pos[1] = rect.top() - this.size[1];
@@ -562,16 +586,11 @@ class PhysicsEntity {
   }
   //resetting momentum of player.
   if(this.collisions.down || this.collisions.up)
-  {
-    this.velocity[1] = 0;
-  }
   
   this.animation.update();
+
 }
-
-
-  render(surf, offset = [0, 0]) {
-    
+    render(surf, offset = [0, 0]) {
     surf.drawImage(flipImage(this.animation.img(), this.flip, false), this.pos[0] - offset[0] + this.animOffset[0], this.pos[1] - offset[1] + this.animOffset[1], this.size[0] + this.sizeOffset[0], this.size[1] + this.sizeOffset[1]);
     //surf.drawImage(this.game.assets['player'], this.pos[0] - offset[0], this.pos[1] - offset[1], ...this.size);
     
@@ -605,7 +624,10 @@ class PhysicsEntity {
     );
     }*/
   }
+
 }
+
+
 
 class Enemy extends PhysicsEntity {
   constructor (game, pos, size) {
@@ -614,6 +636,7 @@ class Enemy extends PhysicsEntity {
     this.walking = 0;
     this.animOffset = [-3, -5];
     this.sizeOffset = [6, 6];
+    this.xSpeed = 2;
     
   }
   
@@ -748,73 +771,28 @@ class Enemy extends PhysicsEntity {
 class Knight extends PhysicsEntity {
   constructor(game, pos, size) {
     super(game, "knight", pos, size);
-    this.animOffset = [-70, -100];
+    this.animOffset = [-70, -113];
     this.sizeOffset = [150, 150];
-    this.xSpeed = 2;
+    this.xSpeed = 0.8;
+    this.walkShake = 0;
   }
   
   update(tilemap, movement=[0, 0]) {
-    //super.update(tilemap, movement);
-    const frameMovementX = (movement[0]* this.xSpeed) + this.velocity[0];
-    const frameMovementY = movement[1] + this.velocity[1];
-
-// ----- Horizontal movement -----
-    this.pos[0] += frameMovementX;
-    let rectX = this.rect();
-    for (let rect of tilemap.physicsRectsAround(this.pos)) {
-    if (rectX.collideRect(rect)) {
-    if (frameMovementX > 0) {
-      this.pos[0] = rect.left() - this.size[0];
-      this.collisions.right = true;
-    } else if (frameMovementX < 0) {
-      this.pos[0] = rect.right();
-      this.collisions.left = true;
-    }
-    break; // only resolve first horizontal collision
-    //if()
-  }
-  if(movement[0] != 0)
-  {
-    movement[0] < 0? this.flip = true: this.flip=false;
-    this.setAction("walkSlow");
-  } else {
-    this.setAction("idle");
-  }
-  
-}
-
-// ----- Vertical movement -----
-this.pos[1] += frameMovementY;
-let rectY = this.rect();
-for (let rect of tilemap.physicsRectsAround(this.pos)) {
-  if (rectY.collideRect(rect)) {
-    if (frameMovementY > 0) {
-      this.pos[1] = rect.top() - this.size[1];
-      this.collisions.down = true;
-      this.grounded = true;
-    } else if (frameMovementY < 0) {
-      this.pos[1] = rect.bottom();
-      this.collisions.up = true;
-    }
-    this.collidingTileRect = rect;
-    
-    break; // only resolve first vertical collision
+    super.update(tilemap, movement);
+    if(movement[0]!=0) {
+      this.flip = !this.flip;
+      this.setAction("walkSlow");
+      this.walkShake += 1;
+      if(this.walkShake == 38) {
+        this.walkShake = 0;
+        this.game.screenShake = Math.max(12, this.game.screenShake);
+      }
+    }else {
+      this.setAction("idle");
+      this.walkShake = 0;
     }
   }
-  if (!this.grounded) {
-  this.velocity[1] = Math.min(7, this.velocity[1] + 0.125);
 }
-//resetting momentum of player.
-if (this.collisions.down || this.collisions.up)
-{
-  this.velocity[1] = 0;
-}
-  this.animation.update();
-
-  }
-}
-
-
 
 class Player extends PhysicsEntity {
   constructor(game, pos, size) {
@@ -825,6 +803,7 @@ class Player extends PhysicsEntity {
     this.jumps = 1;
     this.wallSlide = false;
     this.dashing = 0;
+    this.xSpeed = 2;
     //console.log("Player center:", this.rect().center);
   }
   
@@ -1042,9 +1021,9 @@ class Game {
     this.sfx.hit.volume = 0.8;*/
     
     this.clouds = new Clouds(this.assets.clouds, 16);
-    this.player = new Player(this, [100, 50], [16, 32]);
-    this.knight = new Knight(this, [100, 100], [32, 32]);
     this.tilemap = new Tilemap(this, 32);
+    this.player = new Player(this, [100, 50], [16, 32]);
+    this.knight = new Knight(this, [100, 100], [54, 64]);
     await this.loadLevel(this.currentLevel);
     
     this.start();

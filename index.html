@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>JS Game</title>
+  <link rel="stylesheet" href="style.css" />
+  
+  <script>
+  window.onerror = function(msg, url, line, col, error) {
+    alert("Error: " + msg + "\nLine: " + line);
+  };
+</script>
+</head>
+<body>
+  <canvas id="gameCanvas" width="480" height="270"></canvas>
+  
+    <div id="ui">
+      <div class="ui-elem">
+        <div id="leftBtn" class="btn">
+          <span class="btnTxt">L</span>
+        </div>
+        <div id="rightBtn" class="btn">
+          <span class="btnTxt">R</span>
+        </div>
+      </div>
+      <div class="ui-elem">
+        <div id="jumpBtn" class="btn">
+    	    <span class="btnTxt">Jmp</span>
+        </div>
+        <div id="dashBtn" class="btn">
+    	    <span class="btnTxt">Dash</span>
+        </div>
+      </div>
+      
+    </div>
+  
+
+<script src="test.js"></script>
+</body>
+</html>

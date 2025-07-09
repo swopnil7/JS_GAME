@@ -585,7 +585,9 @@ class PhysicsEntity {
     this.velocity[1] = Math.min(7, this.velocity[1] + 0.125);
   }
   //resetting momentum of player.
-  if(this.collisions.down || this.collisions.up)
+  if(this.collisions.down || this.collisions.up) {
+    this.velocity[1] = 0;
+  }
   
   this.animation.update();
 
@@ -768,25 +770,44 @@ class Enemy extends PhysicsEntity {
 
 }
 
-class Knight extends PhysicsEntity {
+class Executioner extends PhysicsEntity {
   constructor(game, pos, size) {
-    super(game, "knight", pos, size);
-    this.animOffset = [-70, -113];
+    super(game, "executioner", pos, size);
+    this.animOffset = [-75, -112];
     this.sizeOffset = [150, 150];
     this.xSpeed = 0.8;
     this.walkShake = 0;
+    this.attacking = false;
+    this.Attack1 = -110;
   }
   
   update(tilemap, movement=[0, 0]) {
     super.update(tilemap, movement);
+    this.attacking = false;
+    if(this.pos[0] < this.game.player.pos[0] && this.flip) {
+    this.attacking = true;
+    }
+    
     if(movement[0]!=0) {
       this.flip = !this.flip;
-      this.setAction("walkSlow");
+      this.setAction("walk");
       this.walkShake += 1;
-      if(this.walkShake == 38) {
+      if(this.walkShake == 37) {
         this.walkShake = 0;
         this.game.screenShake = Math.max(12, this.game.screenShake);
       }
+    }else if(this.attacking) {
+      if(this.Attack1 <0) {
+        this.setAction("attack1");
+        this.Attack1 += 1;}
+      else {
+        this.setAction("attack2");
+        this.Attack1 += 1;
+        if(this.Attack1 >= 81) {
+          this.Attack1 = - 110;
+        }
+      }
+      this.walkShake = 0;
     }else {
       this.setAction("idle");
       this.walkShake = 0;
@@ -950,6 +971,7 @@ class Player extends PhysicsEntity {
 
 
 // --------------------- GAME -----------------------
+
 class Game {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
@@ -1002,8 +1024,11 @@ class Game {
       spawners: await loadImages("tiles/spawners", 2),
       gun: await loadImg("gun.png"),
       projectile: await loadImg("projectile.png"),
-      knightidle: new Animation(await cutImages("entities/knight/idle.png", 12), 8),
-      knightwalkSlow: new Animation(await cutImages("entities/knight/walk1.png", 12), 7),
+      executioneridle: new Animation(await cutImages("entities/executioner/idle.png", 12), 8),
+      executionerwalk: new Animation(await cutImages("entities/executioner/walk.png", 12), 7),
+      executionerattack1: new Animation(await cutImages("entities/executioner/attack1.png", 11), 10),
+      executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 9),
+
     };
     
     /*this.audioCtx = new(window.AudioContext || window.webkitAudioContext)();*/
@@ -1023,7 +1048,7 @@ class Game {
     this.clouds = new Clouds(this.assets.clouds, 16);
     this.tilemap = new Tilemap(this, 32);
     this.player = new Player(this, [100, 50], [16, 32]);
-    this.knight = new Knight(this, [100, 100], [54, 64]);
+    this.executioner = new Executioner(this, [100, 100], [54, 64]);
     await this.loadLevel(this.currentLevel);
     
     this.start();
@@ -1061,7 +1086,7 @@ class Game {
       } else if(spawner.variant == 1){
         this.enemies.push(new Enemy(this, [...spawner.pos], [16, 32]));
       } else if(spawner.variant == 2){
-        this.knight.pos = [...spawner.pos];
+        this.executioner.pos = [...spawner.pos];
       }
     }
     this.lastTime = performance.now();
@@ -1210,8 +1235,8 @@ class Game {
         }
     }
     
-    //Knight Update
-    this.knight.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
+    //Executioner Update
+    this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
     
     //Player Update
     if(!this.dead) {
@@ -1246,14 +1271,14 @@ class Game {
       enemy.render(this.vctx, this.renderScroll);
     }
     
-    //Knight Render
-    this.knight.render(this.vctx, this.renderScroll);
+    //Executioner Render
+    this.executioner.render(this.vctx, this.renderScroll);
     this.vctx.strokeStyle = "red";
     this.vctx.strokeRect(
-    this.knight.pos[0] - this.renderScroll[0],
-    this.knight.pos[1] - this.renderScroll[1],
-    this.knight.size[0],
-    this.knight.size[1]
+    this.executioner.pos[0] - this.renderScroll[0],
+    this.executioner.pos[1] - this.renderScroll[1],
+    this.executioner.size[0],
+    this.executioner.size[1]
     );
     
     

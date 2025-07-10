@@ -1,0 +1,31 @@
+{
+  "tilemap": {
+    "0;14": { "type": "stone", "variant": 5, "pos": [0, 14] },
+    "1;14": { "type": "stone", "variant": 5, "pos": [1, 14] },
+    "2;14": { "type": "stone", "variant": 5, "pos": [2, 14] },
+    "3;14": { "type": "stone", "variant": 5, "pos": [3, 14] },
+    "4;14": { "type": "stone", "variant": 5, "pos": [4, 14] },
+    "5;14": { "type": "stone", "variant": 5, "pos": [5, 14] },
+    "6;14": { "type": "stone", "variant": 5, "pos": [6, 14] },
+    "7;14": { "type": "stone", "variant": 5, "pos": [7, 14] },
+    "8;14": { "type": "stone", "variant": 5, "pos": [8, 14] },
+    "9;14": { "type": "stone", "variant": 5, "pos": [9, 14] },
+    "10;14": { "type": "stone", "variant": 5, "pos": [10, 14] },
+    "11;14": { "type": "stone", "variant": 5, "pos": [11, 14] },
+    "12;14": { "type": "stone", "variant": 5, "pos": [12, 14] },
+    "13;14": { "type": "stone", "variant": 5, "pos": [13, 14] },
+    "14;14": { "type": "stone", "variant": 5, "pos": [14, 14] },
+    "15;14": { "type": "stone", "variant": 5, "pos": [15, 14] },
+    "16;14": { "type": "stone", "variant": 5, "pos": [16, 14] },
+    "17;14": { "type": "stone", "variant": 5, "pos": [17, 14] },
+    "18;14": { "type": "stone", "variant": 5, "pos": [18, 14] },
+    "19;14": { "type": "stone", "variant": 5, "pos": [19, 14] }
+  },
+  "tile_size": 16,
+  "offgrid": [
+    { "type": "spawners", "variant": 2, "pos": [152, 192] },
+    { "type": "spawners", "variant": 0, "pos": [50, 192] },
+    { "type": "decor", "variant": 0, "pos": [80, 128] },
+    { "type": "decor", "variant": 0, "pos": [240, 128] }
+  ]
+}

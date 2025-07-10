@@ -1,3 +1,4 @@
+console.log("Js loaded");
 class Rect {
   constructor(x, y, width, height) {
     this.x = x; this.y = y;
@@ -921,7 +922,7 @@ class Game {
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
-      spawners: await loadImages("tiles/spawnners", 1),
+      spawners: await loadImages("tiles/spawners", 2),
       gun: await loadImg("gun.png"),
       projectile: await loadImg("projectile.png"),
     };

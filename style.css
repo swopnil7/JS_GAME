@@ -46,3 +46,9 @@ canvas {
   line-height: 60px;
   user-select: none;
 }
+
+#attackBtn {
+  position: absolute;
+  right: 30px;
+  bottom: 90px;
+}

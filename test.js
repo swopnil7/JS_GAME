@@ -629,8 +629,6 @@ class PhysicsEntity {
 
 }
 
-
-
 class Enemy extends PhysicsEntity {
   constructor (game, pos, size) {
     super(game, "enemy", pos, size);
@@ -773,12 +771,27 @@ class Enemy extends PhysicsEntity {
 class Executioner extends PhysicsEntity {
   constructor(game, pos, size) {
     super(game, "executioner", pos, size);
-    this.animOffset = [-75, -112];
-    this.sizeOffset = [150, 150];
+    this.animOffset = [-100, -102];
+    this.sizeOffset = [200, 150];
     this.xSpeed = 0.8;
     this.walkShake = 0;
     this.attacking = false;
     this.Attack1 = -110;
+    this.dealtDamage = false;
+  }
+  getHammerHitbox() {
+  // Only active when swinging
+  if (this.action !== "attack1" && this.action != "attack2") return null;
+  
+  // Customize based on flip and size
+  const width = 40;
+  const height = 40;
+  const centerY = this.rect().centerY;
+  let x = this.flip ?
+    this.rect().right():
+    this.rect().left() - width;
+  
+  return new Rect(x, centerY - height / 2, width, height);
   }
   
   update(tilemap, movement=[0, 0]) {
@@ -788,10 +801,30 @@ class Executioner extends PhysicsEntity {
     this.attacking = true;
     }
     
+    if (this.rect().collideRect(this.game.player.rect()) && this.game.player.dashing >= 50) {
+      this.setAction("hurt");
+      this.walkShake = 0;
+    }
+    // Hammer attack hit
+const hammerHitbox = this.getHammerHitbox();
+if (
+  hammerHitbox &&
+  hammerHitbox.collideRect(this.game.player.rect())
+) {
+  // Only apply damage once per swing (optional cooldown flag)
+  if (!this.dealtDamage) {
+    this.game.player.takeDamage?.(); // implement this
+    this.game.screenShake = Math.max(this.game.screenShake, 10); // heavy hit
+    this.dealtDamage = true;
+  }
+} else {
+  this.dealtDamage = false;
+}
+    
     if(movement[0]!=0) {
       this.flip = !this.flip;
-      this.setAction("walk");
-      this.walkShake += 1;
+        this.setAction("walk");
+        this.walkShake += 1;
       if(this.walkShake == 37) {
         this.walkShake = 0;
         this.game.screenShake = Math.max(12, this.game.screenShake);
@@ -808,9 +841,22 @@ class Executioner extends PhysicsEntity {
         }
       }
       this.walkShake = 0;
-    }else {
+      
+    }
+    else {
       this.setAction("idle");
       this.walkShake = 0;
+    }
+  }
+  
+  render(surf, offset=[0, 0]) {
+    super.render(surf, offset);
+    // inside render()
+    const hammer = this.getHammerHitbox();
+    if (hammer) {
+    surf.strokeStyle = 'red';
+    surf.lineWidth = 2;
+    surf.strokeRect(hammer.x - offset[0], hammer.y - offset[1], hammer.width, hammer.height);
     }
   }
 }
@@ -819,23 +865,73 @@ class Player extends PhysicsEntity {
   constructor(game, pos, size) {
     super(game, "player", pos, size);
     this.airTime = 0;
-    this.animOffset = [-4, -5];
-    this.sizeOffset = [8, 6];
-    this.jumps = 1;
+    this.animOffset = [-48, -67];
+    this.sizeOffset = [95, 80];
+    this.jumps = 2;
     this.wallSlide = false;
     this.dashing = 0;
-    this.xSpeed = 2;
-    //console.log("Player center:", this.rect().center);
+    this.xSpeed = 2.5;
+    this.invincible = 0;
+    this.attacking = 0;
+    this.currentAttackIndex = 0;
+    this.currentAnim = null;
+    this.attacks = [
+    { action: "attack1", duration: 35 },
+    { action: "attack2", duration: 35 },
+    { action: "attack3", duration: 40 }
+    ];
+    this.comboTimer = 60;
   }
+  attack() {
+    if (this.attacking) return;
+  
+    // Reset combo if time ran out
+    if (this.comboTimer <= 0) this.currentAttackIndex = 0;
+  
+    // Set current attack
+    const attackData = this.attacks[this.currentAttackIndex];
+    this.attacking = attackData.duration;
+    this.currentAnim = attackData.action;
+    this.setAction(this.currentAnim);
+  
+    // Move to next attack in combo
+    this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
+    // Reset combo timer
+    this.comboTimer = 60;
+  }
+  
+  takeDamage() {
+  if (this.invincible) return;
+  
+  this.game.screenShake = 20;
+  this.invincible = 30; // frames of invincibility
+  if(this.game.executioner.action == "attack1") {
+    this.velocity[1] = -4;
+    } else {
+      this.velocity[1] = -3;
+      this.velocity[0] = this.game.executioner.flip ? 5 : -5;
+    }
+}
   
   update(tilemap, movement=[0, 0])
   {
+    console.log(this.currentAttackIndex,this.currentAnim);
+    if(this.attacking) movement = [movement[0] * 0.3, 0];
     super.update(tilemap, movement);
+    if (this.invincible) this.invincible--;
+    if(this.attacking) this.attacking -= 1;
+    if(this.comboTimer) {
+      this.comboTimer = Math.max(0, this.comboTimer - 1);
+      if(this.comboTimer === 0) {
+        this.currentAttackIndex = 0;
+      }
+    }
     this.airTime += 1;
+    
     if(this.collisions.down)
     {
       this.airTime = 0;
-      this.jumps = 1;
+      this.jumps = 2;
     }
     
     if(this.airTime > 240)
@@ -858,7 +954,13 @@ class Player extends PhysicsEntity {
       this.setAction('wallSlide');
     }
     
-    if(!this.wallSlide)
+    if (Math.abs(this.dashing) > 50) {
+      if (this.action !== "dash") {
+        this.setAction("dash");
+      }
+    }else if (this.attacking) {
+      this.setAction(this.currentAnim);
+    } else if(!this.wallSlide)
     {
       if (this.airTime > 4)
       {
@@ -871,8 +973,8 @@ class Player extends PhysicsEntity {
     }
     //to make dash particle spawn at player
     let pPos = [
-      this.pos[0] + this.animOffset[0] + (this.size[0] + this.sizeOffset[0]) / 2,
-      this.pos[1] + this.animOffset[1] + (this.size[1] + this.sizeOffset[1]) / 2];
+      this.rect().centerX + (this.flip? -7:7), this.rect().centerY
+    ];
     
     if ([60, 50].includes(Math.abs(this.dashing)))
     {
@@ -897,8 +999,8 @@ class Player extends PhysicsEntity {
     {
       this.velocity[0] = Math.sign(this.dashing) * 10;
       if(Math.abs(this.dashing) == 51)
-        this.velocity[0] *= 0.1;
-      if (Math.abs(this.dashing) >= 51 && Math.abs(this.dashing) <= 60)
+        this.velocity[0] *= 0.3;
+      if (Math.abs(this.dashing) >= 51 && Math.abs(this.dashing) <= 65)
       {
         const pVelocity = [Math.sign(this.dashing) * 3, 0];
         this.game.particles.push(new Particle(this.game, 'dash', pPos, pVelocity, Math.floor(Math.random() * 8)));
@@ -915,12 +1017,8 @@ class Player extends PhysicsEntity {
     
   }
   
-  render(surf, offset=[0, 0])
-  {
-    if(Math.abs(this.dashing) <= 50)
-    {
-      super.render(surf, offset);
-    }
+  render(surf, offset = [0, 0]) {
+    super.render(surf, offset);
   }
   
   jump()
@@ -956,20 +1054,27 @@ class Player extends PhysicsEntity {
     {
       if(this.flip)
       {
-        this.dashing = -60;
+        this.dashing = -65;
       } else {
-        this.dashing = 60;
+        this.dashing = 65;
       }
       /*const source = this.game.audioCtx.createBufferSource();
       source.buffer = this.game.sfx.dash;
       source.connect(this.game.audioCtx.destination);
       source.start(0);*/
+      this.attacking = 0;
     }
   }
   
 }
 
+/*class Player2 extends Player {
+  constructor(game, pos, size) {
+    super(game, pos, size);
+  }
+}
 
+*/
 // --------------------- GAME -----------------------
 
 class Game {
@@ -993,7 +1098,7 @@ class Game {
     this.transitionSurf.height = this.virtualHeight;
     this.tCtx = this.transitionSurf.getContext("2d");
     this.running = false;
-    this.currentLevel = 0;
+    this.currentLevel = 3;
 
     this.movement = [false, false];
     
@@ -1014,10 +1119,13 @@ class Game {
       clouds: await loadImages("clouds", 1),
       enemyidle: new Animation(await loadImages("entities/enemy/idle", 15), 6),
       enemyrun: new Animation(await loadImages("entities/enemy/run", 7), 4),
-      playeridle: new Animation(await loadImages("entities/player/idle", 21), 6),
-      playerrun: new Animation(await loadImages("entities/player/run", 7), 4),
-      playerjump: new Animation(await loadImages("entities/player/jump", 0)),
-      playerslide: new Animation(await loadImages("entities/player/slide", 0)),
+      playeridle: new Animation(await cutImages("entities/player1/idle.png", 14), 6),
+      playerrun: new Animation(await cutImages("entities/player1/run.png", 8), 7),
+      playerjump: new Animation(await cutImages("entities/player1/jump.png", 3), 24),
+      playerdash: new Animation(await cutImages("entities/player1/dash.png", 7), 4),
+      playerattack1: new Animation(await cutImages("entities/player1/attack1.png", 5), 8),
+      playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
+      playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
@@ -1025,10 +1133,12 @@ class Game {
       gun: await loadImg("gun.png"),
       projectile: await loadImg("projectile.png"),
       executioneridle: new Animation(await cutImages("entities/executioner/idle.png", 12), 8),
-      executionerwalk: new Animation(await cutImages("entities/executioner/walk.png", 12), 7),
+      executionerwalk: new Animation(await cutImages("entities/executioner/walk.png", 12), 7
+      ),
       executionerattack1: new Animation(await cutImages("entities/executioner/attack1.png", 11), 10),
-      executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 9),
-
+      executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 10),
+      executionerhurt: new Animation(await cutImages("entities/executioner/hurt.png", 6), 7, false),
+      executionerdeath: new Animation(await cutImages("entities/executioner/death.png", 11), 7),
     };
     
     /*this.audioCtx = new(window.AudioContext || window.webkitAudioContext)();*/
@@ -1047,8 +1157,8 @@ class Game {
     
     this.clouds = new Clouds(this.assets.clouds, 16);
     this.tilemap = new Tilemap(this, 32);
-    this.player = new Player(this, [100, 50], [16, 32]);
-    this.executioner = new Executioner(this, [100, 100], [54, 64]);
+    this.player = new Player(this, [100, 50], [22, 46]);
+    this.executioner = new Executioner(this, [100, 100], [64, 128]);
     await this.loadLevel(this.currentLevel);
     
     this.start();
@@ -1104,6 +1214,7 @@ class Game {
     const deltaTime = (currentTime - this.lastTime) / 1000;
     this.lastTime = currentTime;
     
+    /*
     if(!this.enemies.length)
     {
       this.transition = Math.min(50, this.transition + 1);
@@ -1115,7 +1226,7 @@ class Game {
         }
         
       }
-    }
+    }*/
     if(this.transition < 0) {
       this.transition += 1;
     }
@@ -1272,6 +1383,7 @@ class Game {
     }
     
     //Executioner Render
+    
     this.executioner.render(this.vctx, this.renderScroll);
     this.vctx.strokeStyle = "red";
     this.vctx.strokeRect(
@@ -1287,8 +1399,8 @@ class Game {
       this.player.render(this.vctx, this.renderScroll);
     }
     //player debug box
-    //this.vctx.strokeStyle = 'blue';
-    //this.vctx.strokeRect(...this.player.pos, ...this.player.size);
+    this.vctx.strokeStyle = 'blue';
+    this.vctx.strokeRect(this.player.pos[0]- this.renderScroll[0],this.player.pos[1] - this.renderScroll[1], ...this.player.size);
     
     //Sparks Render
     for (let i = this.sparks.length - 1; i >= 0; i--) {
@@ -1346,12 +1458,11 @@ window.addEventListener("load", () => {
     const game = new Game("gameCanvas");
     await game.assetLoadAll();
     
-    document.body.addEventListener("touchstart", () => {
+    /*document.body.addEventListener("touchstart", () => {
       game.sfx.bg.loop = true;
       game.sfx.bg.volume = 0.5;
       game.sfx.bg.play();
-      }, { once: true });
-    
+      }, { once: true });*/
     document.getElementById("leftBtn").addEventListener("touchstart", () => {
       game.movement[0] = true;
     });
@@ -1369,6 +1480,9 @@ window.addEventListener("load", () => {
     });
     document.getElementById("dashBtn").addEventListener("touchstart", () => {
       game.player.dash();
-      });
+    });
+    document.getElementById("attackBtn").addEventListener("touchstart", () => {
+      game.player.attack();
+    });
   })();
 });

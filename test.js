@@ -1566,5 +1566,47 @@ window.addEventListener("load", () => {
         game.player.attackPressed = true;
       });
     }
+    // Desktop keyboard controls
+    const keyState = {};
+    function handleKey(e, isDown) {
+      if (!game || !game.player) return;
+      let handled = false;
+      switch (e.code) {
+        case "ArrowLeft":
+        case "KeyA":
+          game.movement[0] = isDown;
+          handled = true;
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          game.movement[1] = isDown;
+          handled = true;
+          break;
+        case "Space":
+        case "KeyW":
+        case "ArrowUp":
+          if (isDown && !keyState[e.code]) game.player.jump();
+          handled = true;
+          break;
+        case "ShiftLeft":
+        case "ShiftRight":
+        case "KeyK":
+          if (isDown && !keyState[e.code]) game.player.dash();
+          handled = true;
+          break;
+        case "KeyJ":
+        case "KeyZ":
+          if (isDown && !keyState[e.code]) {
+            if (typeof game.player.attack === "function") game.player.attack();
+            game.player.attackPressed = true;
+          }
+          handled = true;
+          break;
+      }
+      keyState[e.code] = isDown;
+      if (handled) e.preventDefault();
+    }
+    window.addEventListener("keydown", e => handleKey(e, true));
+    window.addEventListener("keyup", e => handleKey(e, false));
   })();
 });

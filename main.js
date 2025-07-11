@@ -972,7 +972,7 @@ class Game {
     }
     
     this.enemies = [];
-    for (let spawner of this.tilemap.extract([["spawners", 0], ["spawners", 1]], false)) {
+    for (let spawner of this.tilemap.extract([["spawners", 0], ["spawners", 1],["spawners", 2]], false)) {
       // extract their positions
       if (spawner.variant == 0) {
         console.log('player spawnner');

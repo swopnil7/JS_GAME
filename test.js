@@ -878,9 +878,14 @@ class Player extends PhysicsEntity {
     ];
     this.comboTimer = 60;
     this.atkHitbox = null;
+    this.doubleTapCounter = 0;
+    this.doubleTapTimer = 60;
+    this.attackPressed = false;
+    this.dashAttack = 0;
   }
   attack() {
     if (this.attacking) return;
+    this.attackPressed = true;
   
     // Reset combo if time ran out
     if (this.comboTimer <= 0) this.currentAttackIndex = 0;
@@ -940,10 +945,17 @@ class Player extends PhysicsEntity {
     this.atkHitbox = null;
     if (this.invincible) this.invincible--;
     if(this.attacking) this.attacking -= 1;
+    if(this.dashAttack) this.dashAttack -= 1;
     if(this.comboTimer) {
       this.comboTimer = Math.max(0, this.comboTimer - 1);
       if(this.comboTimer === 0) {
         this.currentAttackIndex = 0;
+      }
+    }
+    if(this.doubleTapTimer) {
+      this.doubleTapTimer -= 1;
+      if(!this.doubleTapTimer) {
+        this.doubleTapCounter = 0;
       }
     }
     this.frameCounter += 1;
@@ -975,14 +987,23 @@ class Player extends PhysicsEntity {
       } else {
         this.flip = true;
       }
-      this.setAction('wallSlide');
+      //this.setAction('wallSlide');
     }
     
-    if (Math.abs(this.dashing) > 50) {
+    if(this.doubleTapCounter==2 && this.attackPressed && this.grounded) {
+      this.dashAttack = 96;
+    }
+    
+    if (this.dashAttack) {
+      this.setAction("dashAttack");
+      if (this.dashAttack == 60) {
+        this.dash();
+      }
+    }else if (Math.abs(this.dashing) > 50) {
       if (this.action !== "dash") {
         this.setAction("dash");
       }
-    }else if (this.attacking) {
+    } else if (this.attacking) {
       if(this.frameCounter >= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[0] && this.frameCounter <= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[1]) {
         this.atkHitbox = this.getHitbox();
         if(this.atkHitbox.collideRect(this.game.executioner.rect())) {
@@ -1047,6 +1068,9 @@ class Player extends PhysicsEntity {
       this.velocity[0] = Math.min(this.velocity[0] + 0.1, 0);
     }
     
+    //reset at end
+    this.attackPressed = false;
+
   }
   
   render(surf, offset = [0, 0]) {
@@ -1158,10 +1182,11 @@ class Game {
       playeridle: new Animation(await cutImages("entities/player1/idle.png", 14), 6),
       playerrun: new Animation(await cutImages("entities/player1/run.png", 8), 7),
       playerjump: new Animation(await cutImages("entities/player1/jump.png", 3), 24),
-      playerdash: new Animation(await cutImages("entities/player1/dash.png", 7), 4),
+      playerdash: new Animation(await cutImages("entities/player1/dash.png", 7), 7),
       playerattack1: new Animation(await cutImages("entities/player1/attack1.png", 5), 8),
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
+      playerdashAttack: new Animation(await cutImages("entities/player1/dashAttack.png", 9), 8),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
@@ -1174,7 +1199,7 @@ class Game {
       executionerattack1: new Animation(await cutImages("entities/executioner/attack1.png", 11), 10),
       executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 10),
       executionerhurt: new Animation(await cutImages("entities/executioner/hurt.png", 6), 5, false),
-      executionerdeath: new Animation(await cutImages("entities/executioner/death.png", 11), 7),
+      executionerdeath: new Animation(await cutImages("entities/executioner/death.png", 11), 12),
     };
     
     /*this.audioCtx = new(window.AudioContext || window.webkitAudioContext)();*/
@@ -1501,12 +1526,19 @@ window.addEventListener("load", () => {
       }, { once: true });*/
     document.getElementById("leftBtn").addEventListener("touchstart", () => {
       game.movement[0] = true;
+      if(!game.player.doubleTapTimer) {
+        game.player.doubleTapTimer = 60;
+        }
+      game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
     });
     document.getElementById("leftBtn").addEventListener("touchend", () => {
       game.movement[0] = false;
     });
     document.getElementById("rightBtn").addEventListener("touchstart", () => {
       game.movement[1] = true;
+      if (!game.player.doubleTapTimer){
+          game.player.doubleTapTimer = 60;}
+        game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
     });
     document.getElementById("rightBtn").addEventListener("touchend", () => {
       game.movement[1] = false;
@@ -1519,6 +1551,7 @@ window.addEventListener("load", () => {
     });
     document.getElementById("attackBtn").addEventListener("touchstart", () => {
       game.player.attack();
+      game.player.attackPressed = true;
     });
   })();
 });

@@ -775,75 +775,77 @@ class Executioner extends PhysicsEntity {
     this.sizeOffset = [200, 150];
     this.xSpeed = 0.8;
     this.walkShake = 0;
-    this.attacking = false;
-    this.Attack1 = -110;
+    this.attacking = 0;
     this.dealtDamage = false;
+    this.currentAttackIndex = 0;
+    this.comboTimer = 60;
+    this.hurtTimer = 30;
+    this.attacks = [
+    { action: "attack1", duration: 110, hitboxDur: [80, 90], hitboxSize: [27, 40] },
+    { action: "attack2", duration: 90, hitboxDur: [30, 40], hitboxSize: [27, 40] },
+    ];
   }
-  getHammerHitbox() {
-  // Only active when swinging
-  if (this.action !== "attack1" && this.action != "attack2") return null;
+    attack() {
+    if (this.attacking) return;
   
-  // Customize based on flip and size
-  const width = 40;
-  const height = 40;
-  const centerY = this.rect().centerY;
-  let x = this.flip ?
-    this.rect().right():
-    this.rect().left() - width;
+    // Reset combo if time ran out
+    if (this.comboTimer <= 0) this.currentAttackIndex = 0;
   
-  return new Rect(x, centerY - height / 2, width, height);
+    // Set current attack
+    const attackData = this.attacks[this.currentAttackIndex];
+    this.attacking = attackData.duration;
+    this.currentAnim = attackData.action;
+    this.frameCounter = 0; //Resetting frame at start of each attack
+    this.setAction(this.currentAnim);
+  
+    // Move to next attack in combo
+    this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
+    // Reset combo timer
+    this.comboTimer = 60;
   }
   
+  getHitbox() {
+    let index = null;
+    if(this.action == "attack2") {
+      index = 1;
+    } else {
+      index = Math.max(this.currentAttackIndex - 1, 0);
+    }
+    const hSize = [
+      this.attacks[index].hitboxSize[0],
+      this.attacks[index].hitboxSize[1]
+    ];
+    const hPos = [0, this.rect().centerY - hSize[1] / 2];
+    if(this.flip) {
+      hPos[0] = this.rect().left() - hSize[0];
+    } else{
+      hPos[0] = this.rect().right();
+    }
+    const rect = new Rect(hPos[0], hPos[1], hSize[0], hSize[1]);
+    return rect;
+  }
+
   update(tilemap, movement=[0, 0]) {
     super.update(tilemap, movement);
-    this.attacking = false;
+    if(this.attacking) this.attacking -= 1;
+    if(this.comboTimer) this.comboTimer -= 1;
+    if(this.hurtTimer) this.hurtTimer -= 1;
+    if(movement[0] != 0) this.flip = !this.flip;
     if(this.pos[0] < this.game.player.pos[0] && this.flip) {
-    this.attacking = true;
+    this.attack();
     }
     
-    if (this.rect().collideRect(this.game.player.rect()) && this.game.player.dashing >= 50) {
+    if (this.hurtTimer) {
       this.setAction("hurt");
       this.walkShake = 0;
-    }
-    // Hammer attack hit
-const hammerHitbox = this.getHammerHitbox();
-if (
-  hammerHitbox &&
-  hammerHitbox.collideRect(this.game.player.rect())
-) {
-  // Only apply damage once per swing (optional cooldown flag)
-  if (!this.dealtDamage) {
-    this.game.player.takeDamage?.(); // implement this
-    this.game.screenShake = Math.max(this.game.screenShake, 10); // heavy hit
-    this.dealtDamage = true;
-  }
-} else {
-  this.dealtDamage = false;
-}
-    
-    if(movement[0]!=0) {
-      this.flip = !this.flip;
+    } else if(movement[0]!=0) {
         this.setAction("walk");
         this.walkShake += 1;
       if(this.walkShake == 37) {
         this.walkShake = 0;
         this.game.screenShake = Math.max(12, this.game.screenShake);
       }
-    }else if(this.attacking) {
-      if(this.Attack1 <0) {
-        this.setAction("attack1");
-        this.Attack1 += 1;}
-      else {
-        this.setAction("attack2");
-        this.Attack1 += 1;
-        if(this.Attack1 >= 81) {
-          this.Attack1 = - 110;
-        }
-      }
-      this.walkShake = 0;
-      
-    }
-    else {
+    }else {
       this.setAction("idle");
       this.walkShake = 0;
     }
@@ -851,13 +853,6 @@ if (
   
   render(surf, offset=[0, 0]) {
     super.render(surf, offset);
-    // inside render()
-    const hammer = this.getHammerHitbox();
-    if (hammer) {
-    surf.strokeStyle = 'red';
-    surf.lineWidth = 2;
-    surf.strokeRect(hammer.x - offset[0], hammer.y - offset[1], hammer.width, hammer.height);
-    }
   }
 }
 
@@ -877,9 +872,9 @@ class Player extends PhysicsEntity {
     this.currentAttackIndex = 0;
     this.currentAnim = null;
     this.attacks = [
-    { action: "attack1", duration: 35 , hitboxDur: [12, 18]},
-    { action: "attack2", duration: 35 },
-    { action: "attack3", duration: 40 }
+    { action: "attack1", duration: 35 , hitboxDur: [18, 24], hitboxSize: [27,40]},
+    { action: "attack2", duration: 35 ,hitboxDur: [18, 24], hitboxSize: [27,40]},
+    { action: "attack3", duration: 40 ,hitboxDur: [18, 24], hitboxSize: [33,60]}
     ];
     this.comboTimer = 60;
     this.atkHitbox = null;
@@ -904,8 +899,23 @@ class Player extends PhysicsEntity {
   }
   
   getHitbox() {
-    const hPos = [this.rect().centerX + this.size[0] / 2 *(this.flip?-1:1), this.rect().centerY];
-    const rect = new Rect([...hPos], 10,10);
+    let index = null;
+    if(this.action == "attack3") {
+      index = 2;
+    } else {
+      index = Math.max(this.currentAttackIndex - 1, 0);
+    }
+    const hSize = [
+      this.attacks[index].hitboxSize[0],
+      this.attacks[index].hitboxSize[1]
+    ];
+    const hPos = [0, this.rect().centerY - hSize[1] / 2];
+    if(this.flip) {
+      hPos[0] = this.rect().left() - hSize[0];
+    } else{
+      hPos[0] = this.rect().right();
+    }
+    const rect = new Rect(hPos[0], hPos[1], hSize[0], hSize[1]);
     return rect;
   }
   
@@ -924,9 +934,10 @@ class Player extends PhysicsEntity {
   
   update(tilemap, movement=[0, 0])
   {
-    console.log(this.currentAttackIndex,this.currentAnim);
     if(this.attacking) movement = [movement[0] * 0.5, 0];
     super.update(tilemap, movement);
+    //Resetting counters
+    this.atkHitbox = null;
     if (this.invincible) this.invincible--;
     if(this.attacking) this.attacking -= 1;
     if(this.comboTimer) {
@@ -972,8 +983,14 @@ class Player extends PhysicsEntity {
         this.setAction("dash");
       }
     }else if (this.attacking) {
-      if(this.frameCounter )
-      this.atkHitbox = getHitbox()
+      if(this.frameCounter >= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[0] && this.frameCounter <= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[1]) {
+        this.atkHitbox = this.getHitbox();
+        if(this.atkHitbox.collideRect(this.game.executioner.rect())) {
+          if(!this.game.executioner.hurtTimer) {
+            this.game.executioner.hurtTimer = 30;
+          }
+        }
+      }
       this.setAction(this.currentAnim);
     } else if(!this.wallSlide)
     {
@@ -1034,6 +1051,10 @@ class Player extends PhysicsEntity {
   
   render(surf, offset = [0, 0]) {
     super.render(surf, offset);
+    if(this.atkHitbox){
+      surf.fillStyle = "green";
+      surf.fillRect(this.atkHitbox.x - offset[0], this.atkHitbox.y - offset[1], this.atkHitbox.width, this.atkHitbox.height);
+    }
   }
   
   jump()
@@ -1152,7 +1173,7 @@ class Game {
       ),
       executionerattack1: new Animation(await cutImages("entities/executioner/attack1.png", 11), 10),
       executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 10),
-      executionerhurt: new Animation(await cutImages("entities/executioner/hurt.png", 6), 7, false),
+      executionerhurt: new Animation(await cutImages("entities/executioner/hurt.png", 6), 5, false),
       executionerdeath: new Animation(await cutImages("entities/executioner/death.png", 11), 7),
     };
     

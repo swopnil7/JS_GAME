@@ -1193,7 +1193,7 @@ class Game {
       this.tCtx.fillStyle = "black";
       this.tCtx.fillRect(0, 0, this.virtualWidth, this.virtualHeight);
       const radius = Math.abs((30 - Math.abs(this.transition)) * 16);
-      //Yesle aaba j sukai draw garyk teslai canvas bata cutout gardinxa Basicly pen is erazer
+      //Yesle aaba j sukai draw garyk teslai canvas bata cutout gardinxa Basically pen is erazer
       this.tCtx.globalCompositeOperation = "destination-out";
       this.tCtx.beginPath();
       this.tCtx.arc(
@@ -1223,30 +1223,43 @@ window.addEventListener("load", () => {
   (async () => {
     const game = new Game("gameCanvas");
     await game.assetLoadAll();
-    
+
     document.body.addEventListener("touchstart", () => {
       game.sfx.bg.loop = true;
       game.sfx.bg.volume = 0.5;
       game.sfx.bg.play();
-      }, { once: true });
-    
-    document.getElementById("leftBtn").addEventListener("touchstart", () => {
-      game.movement[0] = true;
-    });
-    document.getElementById("leftBtn").addEventListener("touchend", () => {
-      game.movement[0] = false;
-    });
-    document.getElementById("rightBtn").addEventListener("touchstart", () => {
-      game.movement[1] = true;
-    });
-    document.getElementById("rightBtn").addEventListener("touchend", () => {
-      game.movement[1] = false;
-    });
-    document.getElementById("jumpBtn").addEventListener("touchstart", () => {
-      game.player.jump();
-    });
-    document.getElementById("dashBtn").addEventListener("touchstart", () => {
-      game.player.dash();
+    }, { once: true });
+
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const jumpBtn = document.getElementById("jumpBtn");
+    const dashBtn = document.getElementById("dashBtn");
+
+    if (leftBtn) {
+      leftBtn.addEventListener("touchstart", () => {
+        game.movement[0] = true;
       });
+      leftBtn.addEventListener("touchend", () => {
+        game.movement[0] = false;
+      });
+    }
+    if (rightBtn) {
+      rightBtn.addEventListener("touchstart", () => {
+        game.movement[1] = true;
+      });
+      rightBtn.addEventListener("touchend", () => {
+        game.movement[1] = false;
+      });
+    }
+    if (jumpBtn) {
+      jumpBtn.addEventListener("touchstart", () => {
+        game.player.jump();
+      });
+    }
+    if (dashBtn) {
+      dashBtn.addEventListener("touchstart", () => {
+        game.player.dash();
+      });
+    }
   })();
 });

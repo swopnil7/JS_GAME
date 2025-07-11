@@ -1518,40 +1518,53 @@ window.addEventListener("load", () => {
     console.log("window loaded");
     const game = new Game("gameCanvas");
     await game.assetLoadAll();
-    
-    /*document.body.addEventListener("touchstart", () => {
-      game.sfx.bg.loop = true;
-      game.sfx.bg.volume = 0.5;
-      game.sfx.bg.play();
-      }, { once: true });*/
-    document.getElementById("leftBtn").addEventListener("touchstart", () => {
-      game.movement[0] = true;
-      if(!game.player.doubleTapTimer) {
-        game.player.doubleTapTimer = 60;
+
+    // Check if control buttons exist before adding event listeners
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+    const jumpBtn = document.getElementById("jumpBtn");
+    const dashBtn = document.getElementById("dashBtn");
+    const attackBtn = document.getElementById("attackBtn");
+
+    if (leftBtn) {
+      leftBtn.addEventListener("touchstart", () => {
+        game.movement[0] = true;
+        if (!game.player.doubleTapTimer) {
+          game.player.doubleTapTimer = 60;
         }
-      game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
-    });
-    document.getElementById("leftBtn").addEventListener("touchend", () => {
-      game.movement[0] = false;
-    });
-    document.getElementById("rightBtn").addEventListener("touchstart", () => {
-      game.movement[1] = true;
-      if (!game.player.doubleTapTimer){
-          game.player.doubleTapTimer = 60;}
         game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
-    });
-    document.getElementById("rightBtn").addEventListener("touchend", () => {
-      game.movement[1] = false;
-    });
-    document.getElementById("jumpBtn").addEventListener("touchstart", () => {
-      game.player.jump();
-    });
-    document.getElementById("dashBtn").addEventListener("touchstart", () => {
-      game.player.dash();
-    });
-    document.getElementById("attackBtn").addEventListener("touchstart", () => {
-      game.player.attack();
-      game.player.attackPressed = true;
-    });
+      });
+      leftBtn.addEventListener("touchend", () => {
+        game.movement[0] = false;
+      });
+    }
+    if (rightBtn) {
+      rightBtn.addEventListener("touchstart", () => {
+        game.movement[1] = true;
+        if (!game.player.doubleTapTimer) {
+          game.player.doubleTapTimer = 60;
+        }
+        game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
+      });
+      rightBtn.addEventListener("touchend", () => {
+        game.movement[1] = false;
+      });
+    }
+    if (jumpBtn) {
+      jumpBtn.addEventListener("touchstart", () => {
+        game.player.jump();
+      });
+    }
+    if (dashBtn) {
+      dashBtn.addEventListener("touchstart", () => {
+        game.player.dash();
+      });
+    }
+    if (attackBtn) {
+      attackBtn.addEventListener("touchstart", () => {
+        game.player.attack();
+        game.player.attackPressed = true;
+      });
+    }
   })();
 });

@@ -873,14 +873,16 @@ class Player extends PhysicsEntity {
     this.xSpeed = 2.5;
     this.invincible = 0;
     this.attacking = 0;
+    this.frameCounter = 0;
     this.currentAttackIndex = 0;
     this.currentAnim = null;
     this.attacks = [
-    { action: "attack1", duration: 35 },
+    { action: "attack1", duration: 35 , hitboxDur: [12, 18]},
     { action: "attack2", duration: 35 },
     { action: "attack3", duration: 40 }
     ];
     this.comboTimer = 60;
+    this.atkHitbox = null;
   }
   attack() {
     if (this.attacking) return;
@@ -892,12 +894,19 @@ class Player extends PhysicsEntity {
     const attackData = this.attacks[this.currentAttackIndex];
     this.attacking = attackData.duration;
     this.currentAnim = attackData.action;
+    this.frameCounter = 0; //Resetting frame at start of each attack
     this.setAction(this.currentAnim);
   
     // Move to next attack in combo
     this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
     // Reset combo timer
     this.comboTimer = 60;
+  }
+  
+  getHitbox() {
+    const hPos = [this.rect().centerX + this.size[0] / 2 *(this.flip?-1:1), this.rect().centerY];
+    const rect = new Rect([...hPos], 10,10);
+    return rect;
   }
   
   takeDamage() {
@@ -916,7 +925,7 @@ class Player extends PhysicsEntity {
   update(tilemap, movement=[0, 0])
   {
     console.log(this.currentAttackIndex,this.currentAnim);
-    if(this.attacking) movement = [movement[0] * 0.3, 0];
+    if(this.attacking) movement = [movement[0] * 0.5, 0];
     super.update(tilemap, movement);
     if (this.invincible) this.invincible--;
     if(this.attacking) this.attacking -= 1;
@@ -926,6 +935,7 @@ class Player extends PhysicsEntity {
         this.currentAttackIndex = 0;
       }
     }
+    this.frameCounter += 1;
     this.airTime += 1;
     
     if(this.collisions.down)
@@ -938,8 +948,11 @@ class Player extends PhysicsEntity {
     {
       this.game.dead = 1;
     }
-    
     this.wallSlide = false;
+    
+    //Animation Logic
+    
+    
     if((this.collisions.right || this.collisions.left) && this.airTime > 4 && !this.grounded)
     {
       this.wallSlide = true;
@@ -959,6 +972,8 @@ class Player extends PhysicsEntity {
         this.setAction("dash");
       }
     }else if (this.attacking) {
+      if(this.frameCounter )
+      this.atkHitbox = getHitbox()
       this.setAction(this.currentAnim);
     } else if(!this.wallSlide)
     {

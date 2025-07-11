@@ -61,32 +61,40 @@ function drawPolygon(ctx, points, fill = true, stroke = true, fColor = 'white', 
 // --------------------- UTILS -----------------------
 const BASE_IMG_PATH = "data/images/";
 function loadImg(path) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const processed = applyColorKey(img, { r: 0, g: 0, b: 0 });
-      resolve(processed);
-      img.onerror = () => {
-      console.error("Failed to load image:", BASE_IMG_PATH + path);
+      try {
+        const processed = applyColorKey(img, { r: 0, g: 0, b: 0 });
+        resolve(processed);
+      } catch (e) {
+        console.error("Error processing image:", BASE_IMG_PATH + path, e);
+        reject(e);
+      }
+    };
+    img.onerror = (e) => {
+      console.error("Failed to load image:", BASE_IMG_PATH + path, e);
       reject("Image load error: " + BASE_IMG_PATH + path);
     };
-    };
-    img.src = BASE_IMG_PATH + path;
+    // Always use lowercase for asset paths for GitHub Pages
+    img.src = (BASE_IMG_PATH + path).toLowerCase();
   });
 }
 async function loadImages(path, len) {
   const imgs = [];
   for (let i = 0; i <= len; i++) {
-    if(len > 9)
-    {
-      const num = i.toString().padStart(2, '0');
-      const img = await loadImg(`${path}/${num}.png`);
-      imgs.push(img);
-    }
-    else{
-      const num = i;
-      const img = await loadImg(`${path}/${num}.png`);
-      imgs.push(img);
+    try {
+      if (len > 9) {
+        const num = i.toString().padStart(2, '0');
+        const img = await loadImg(`${path}/${num}.png`.toLowerCase());
+        imgs.push(img);
+      } else {
+        const num = i;
+        const img = await loadImg(`${path}/${num}.png`.toLowerCase());
+        imgs.push(img);
+      }
+    } catch (e) {
+      console.error(`Failed to load image: ${path}/${i}.png`, e);
     }
   }
   return imgs;
@@ -137,18 +145,21 @@ function flipImage(image, flipX = false, flipY = false) {
 }
 
 async function cutImages(path, count) {
-  const img = await loadImg(path);
+  let img;
+  try {
+    img = await loadImg(path.toLowerCase());
+  } catch (e) {
+    console.error(`Failed to load spritesheet: ${path}`, e);
+    return [];
+  }
   const imgs = [];
   const frameWidth = Math.floor(img.width / count);
-  
   for (let i = 0; i < count; i++) {
     const canvas = document.createElement("canvas");
     canvas.width = frameWidth;
     canvas.height = img.height;
     const ctx = canvas.getContext("2d");
-    
     const sx = i * frameWidth;
-    
     ctx.drawImage(
       img,
       sx, 0,
@@ -156,10 +167,8 @@ async function cutImages(path, count) {
       0, 0,
       frameWidth, img.height
     );
-    
     imgs.push(canvas);
   }
-  
   return imgs;
 }
 
@@ -377,12 +386,20 @@ class Tilemap {
   }
   async load(path) 
   {
-    const res = await fetch(path);
-    const data = await res.json();
-  
-    this.tilemap = data.tilemap;
-    this.offGridTiles = data.offgrid || [];
-    //this.tileSize = data.tile_size || 16;
+    try {
+      // Always use lowercase for map paths
+      const res = await fetch(path.toLowerCase());
+      if (!res.ok) {
+        throw new Error(`Failed to fetch map: ${path} (status ${res.status})`);
+      }
+      const data = await res.json();
+      this.tilemap = data.tilemap;
+      this.offGridTiles = data.offgrid || [];
+    } catch (e) {
+      console.error(`Error loading map file: ${path}`, e);
+      this.tilemap = {};
+      this.offGridTiles = [];
+    }
   }
   
   solidCheck(pos)
@@ -1158,7 +1175,7 @@ class Game {
     this.transitionSurf.height = this.virtualHeight;
     this.tCtx = this.transitionSurf.getContext("2d");
     this.running = false;
-    this.currentLevel = 3;
+    this.currentLevel = 0;
 
     this.movement = [false, false];
     
@@ -1173,7 +1190,7 @@ class Game {
       grass: await loadImages("tiles/grass", 8),
       stone: await loadImages("tiles/stone", 8),
       decor: await loadImages("tiles/decor", 3),
-      large_decor: await loadImages("tiles/largeDecor", 2),
+      large_decor: await loadImages("tiles/largedecor", 2),
       player: await loadImg("entities/player.png"),
       background: await loadImg("background.png"),
       clouds: await loadImages("clouds", 1),
@@ -1186,7 +1203,7 @@ class Game {
       playerattack1: new Animation(await cutImages("entities/player1/attack1.png", 5), 8),
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
-      playerdashAttack: new Animation(await cutImages("entities/player1/dashAttack.png", 9), 8),
+      playerdashAttack: new Animation(await cutImages("entities/player1/dashattack.png", 9), 8),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),

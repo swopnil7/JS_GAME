@@ -1298,7 +1298,6 @@ class Player extends PhysicsEntity {
 class Game {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
-    // Set up crisp rendering for high-DPI screens
     this.setCanvasResolution();
     this.ctx = this.canvas.getContext("2d");
     // Make canvas rendering pixelated for retro look
@@ -1683,11 +1682,7 @@ class Game {
 
 let game;
 window.addEventListener("load", () => {
-  // Hide controller section on PCs (non-touch devices) with !important
-  if (!('ontouchstart' in window)) {
-    const controller = document.getElementById("controller");
-    if (controller) controller.style.setProperty('display', 'none', 'important');
-  }
+
   // Responsive: update canvas and virtual size on window resize
   window.addEventListener("resize", () => {
     if (game) {
@@ -1704,7 +1699,6 @@ window.addEventListener("load", () => {
     game = new Game("gameCanvas");
     await game.assetLoadAll();
 
-    // Check if control buttons exist before adding event listeners
     const leftBtn = document.getElementById("leftBtn");
     const rightBtn = document.getElementById("rightBtn");
     const jumpBtn = document.getElementById("jumpBtn");

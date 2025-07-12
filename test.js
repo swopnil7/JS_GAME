@@ -636,6 +636,8 @@ class Enemy extends PhysicsEntity {
     this.animOffset = [-3, -5];
     this.sizeOffset = [6, 6];
     this.xSpeed = 2;
+    this.knockBackTimer = 0
+    this.dead = false;
     
   }
   
@@ -696,6 +698,11 @@ class Enemy extends PhysicsEntity {
     } else if (Math.random() < 0.01) {
     this.walking = Math.floor(Math.random() * (120 - 30 + 1)) + 30;
     }
+    
+    //KnockBack counter
+    if(this.knockBackTimer) this.knockBackTimer -= 1;
+    
+    //Super Update
     super.update(tilemap, movement);
   
     if(movement[0] != 0)
@@ -705,8 +712,82 @@ class Enemy extends PhysicsEntity {
       this.setAction("idle");
     }
     
-    //Killing Enemy
-    if(Math.abs(this.game.player.dashing) >= 50) {
+    if(this.dead && this.velocity[1] > - 6) {
+      //kill effect
+      for (let i = 0; i < 30; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = Math.random() * 5;
+        this.game.sparks.push(new Spark(
+            this.rect().center,
+            angle,
+            5 + Math.random(),
+            "red"
+          ));
+          this.game.sparks.push(new Spark(
+            this.rect().center,
+            angle,
+            4 + Math.random(),
+            "yellow","white"
+          ));
+        this.game.particles.push(new Particle(
+          this.game, "dash",
+          this.rect().center,
+          [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5],
+          Math.floor(Math.random() * 8)
+          ));
+      }
+      this.game.sparks.push(new Spark(
+      this.rect().center,
+      0,
+      8 + Math.random()
+      ));
+      this.game.sparks.push(new Spark(
+      this.rect().center,
+      Math.PI,
+      8 + Math.random(),
+      "black"
+      ));
+      //actuall kill in memory
+      return true;
+    }
+    
+    //Killing Enemy by special Attacks
+    if(this.game.player.atkHitbox && this.game.player.action == "strongAttack") {
+      if(this.game.player.atkHitbox.collideRect(this.rect())) {
+        if(this.game.player.action == "strongAttack") {
+          if(!this.knockBackTimer) {
+            this.velocity[1] = -7 -(Math.random()*2);
+            let dir = Math.sign(this.rect().centerX - this.game.player.rect().centerX);
+            this.velocity[0] = dir * 5;
+            this.knockBackTimer = 60;
+            this.dead = true;
+          }
+        }
+      }
+    }
+    //Killing Enemy bu Physical Attack
+    else if(this.game.player.atkHitbox) {
+      if(this.rect().collideRect(this.game.player.atkHitbox)) {
+        this.game.screenShake = Math.max(18, this.game.screenShake);
+        let angle = 0;
+        for (let i = 0; i < 15; i++) {
+          if(this.game.player.flip){
+            angle = (Math.PI * 0.8) + Math.random() * (Math.PI*0.5);
+          }else {
+            angle = (Math.PI * 1.7) + Math.random() * (Math.PI*0.5);
+          }
+          let speed = Math.random() * 5;
+          this.game.sparks.push(new Spark(
+          this.rect().center,
+          angle,
+          5 + Math.random(),
+          "#8B0000","pink"
+          ));}
+        return true;
+      }
+    }
+    //Killing Enemy by Dash
+    else if(Math.abs(this.game.player.dashing) >= 50) {
       if(this.rect().collideRect(this.game.player.rect())) {
         this.game.screenShake = Math.max(20, this.game.screenShake);
         for (let i = 0; i < 30; i++) {
@@ -931,6 +1012,7 @@ class Player extends PhysicsEntity {
   strongAtk() {
     if(!this.strongAttack) {
       this.strongAttack = 110;
+      this.invincible = 160;
     }
   }
   
@@ -1046,6 +1128,13 @@ class Player extends PhysicsEntity {
         this.game.screenShake = Math.max(30, this.game.screenShake);
         this.ultShake = true;
       }
+      //Strong Attack Hitboxx
+      if(this.strongAttack < 50 && this.grounded) {
+        this.atkHitbox = new Rect(this.rect().centerX - 250/2,
+          this.rect().bottom() - 15,
+          250,15
+        );
+      }
     }else if(!this.strongAttack) {
       this.ultShake = false;
     if (this.dashAttack) {
@@ -1070,11 +1159,12 @@ class Player extends PhysicsEntity {
     } else if (this.attacking) {
       if(this.frameCounter >= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[0] && this.frameCounter <= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[1]) {
         this.atkHitbox = this.getHitbox();
+        if(this.game.executioner) {
         if(this.atkHitbox.collideRect(this.game.executioner.rect())) {
           if(!this.game.executioner.hurtTimer) {
             this.game.executioner.hurtTimer = 30;
           }
-        }
+        }}
       }
       this.setAction(this.currentAnim);
     } else if(!this.wallSlide)
@@ -1140,10 +1230,10 @@ class Player extends PhysicsEntity {
   
   render(surf, offset = [0, 0]) {
     super.render(surf, offset);
-    if(this.atkHitbox){
+    /*if(this.atkHitbox){
       surf.fillStyle = "green";
       surf.fillRect(this.atkHitbox.x - offset[0], this.atkHitbox.y - offset[1], this.atkHitbox.width, this.atkHitbox.height);
-    }
+    }*/
   }
   
   jump()
@@ -1216,7 +1306,7 @@ class Game {
     this.transitionSurf.height = this.virtualHeight;
     this.tCtx = this.transitionSurf.getContext("2d");
     this.running = false;
-    this.currentLevel = 3;
+    this.currentLevel = 0;
 
     this.movement = [false, false];
     
@@ -1245,7 +1335,7 @@ class Game {
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
       playerdashAttack: new Animation(await cutImages("entities/player1/dashAttack.png", 9), 8),
-      playerstrongAttack: new Animation(await cutImages("entities/player1/strongAttack.png", 11), 10),
+      playerstrongAttack: new Animation(await cutImages("entities/player1/strongAttack.png", 11), 10, false),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
@@ -1278,9 +1368,8 @@ class Game {
     this.clouds = new Clouds(this.assets.clouds, 16);
     this.tilemap = new Tilemap(this, 32);
     this.player = new Player(this, [100, 50], [22, 46]);
-    this.executioner = new Executioner(this, [100, 100], [64, 128]);
+    this.executioner = null;
     await this.loadLevel(this.currentLevel);
-    
     this.start();
     
   }
@@ -1297,12 +1386,18 @@ class Game {
     this.screenShake = 0;
     this.dead = 0;
     this.transition = -30;
-    this.loadingLevel = false;
+    this.loadingLevel = false
+    
+    //player reset
+    this.player.strongAttack = 0;
     
     this.leafSpawnners = [];
     for(let tree of this.tilemap.extract([["large_decor", 2]], true))
     {
       this.leafSpawnners.push(new Rect(tree.pos[0] + 4, tree.pos[1] + 4, 23, 13));
+    }
+    if (this.currentLevel == 3) {
+      this.executioner = new Executioner(this, [100, 100], [64, 128]);
     }
     
     this.enemies = [];
@@ -1314,7 +1409,7 @@ class Game {
         this.player.airTime = 0;
       } else if(spawner.variant == 1){
         this.enemies.push(new Enemy(this, [...spawner.pos], [16, 32]));
-      } else if(spawner.variant == 2){
+      } else if(spawner.variant == 2 && this.currentLevel == 3){
         this.executioner.pos = [...spawner.pos];
       }
     }
@@ -1333,19 +1428,19 @@ class Game {
     const deltaTime = (currentTime - this.lastTime) / 1000;
     this.lastTime = currentTime;
     
-    /*
+    
     if(!this.enemies.length)
     {
       this.transition = Math.min(50, this.transition + 1);
       if(this.transition >= 30) {
         if(!this.loadingLevel) {
           this.loadingLevel = true;
-          this.currentLevel = Math.min(2, this.currentLevel + 1);
+          this.currentLevel = Math.min(3, this.currentLevel + 1);
           this.loadLevel(this.currentLevel);
         }
         
       }
-    }*/
+    }
     if(this.transition < 0) {
       this.transition += 1;
     }
@@ -1404,6 +1499,7 @@ class Game {
       {
         if(this.player.rect().collidePoint(projectile[0]))
         {
+          if(!this.player.invincible) {
           this.dead += 1;
           this.screenShake = Math.max(20, this.screenShake);
           this.projectiles.splice(i, 1);
@@ -1421,6 +1517,7 @@ class Game {
               [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5],
               Math.floor(Math.random() * 8)
             ));
+          }
           }
         }
       }
@@ -1466,8 +1563,9 @@ class Game {
     }
     
     //Executioner Update
-    this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
-    
+    if(this.executioner) {
+      this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
+    }
     //Player Update
     if(!this.dead) {
       this.player.update(this.tilemap, [ this.movement[1] - this.movement[0], 0]);
@@ -1514,15 +1612,17 @@ class Game {
     }
     
     //Executioner Render
+    if(this.executioner) {
+      this.executioner.render(this.vctx, this.renderScroll);
+      this.vctx.strokeStyle = "red";
+      this.vctx.strokeRect(
+      this.executioner.pos[0] - this.renderScroll[0],
+      this.executioner.pos[1] - this.renderScroll[1],
+      this.executioner.size[0],
+      this.executioner.size[1]
+      );
+    }
     
-    this.executioner.render(this.vctx, this.renderScroll);
-    this.vctx.strokeStyle = "red";
-    this.vctx.strokeRect(
-    this.executioner.pos[0] - this.renderScroll[0],
-    this.executioner.pos[1] - this.renderScroll[1],
-    this.executioner.size[0],
-    this.executioner.size[1]
-    );
     
     
     //Player Render

@@ -52,3 +52,8 @@ canvas {
   right: 30px;
   bottom: 90px;
 }
+#ultBtn {
+  position: absolute;
+  right: 110px;
+  bottom: 90px;
+}

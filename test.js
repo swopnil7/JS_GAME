@@ -1,4 +1,3 @@
-console.log("JS loaded");
 
 class Rect {
   constructor(x, y, width, height) {
@@ -654,6 +653,8 @@ class Enemy extends PhysicsEntity {
     this.animOffset = [-3, -5];
     this.sizeOffset = [6, 6];
     this.xSpeed = 2;
+    this.knockBackTimer = 0
+    this.dead = false;
     
   }
   
@@ -714,6 +715,11 @@ class Enemy extends PhysicsEntity {
     } else if (Math.random() < 0.01) {
     this.walking = Math.floor(Math.random() * (120 - 30 + 1)) + 30;
     }
+    
+    //KnockBack counter
+    if(this.knockBackTimer) this.knockBackTimer -= 1;
+    
+    //Super Update
     super.update(tilemap, movement);
   
     if(movement[0] != 0)
@@ -723,8 +729,82 @@ class Enemy extends PhysicsEntity {
       this.setAction("idle");
     }
     
-    //Killing Enemy
-    if(Math.abs(this.game.player.dashing) >= 50) {
+    if(this.dead && this.velocity[1] > - 6) {
+      //kill effect
+      for (let i = 0; i < 30; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let speed = Math.random() * 5;
+        this.game.sparks.push(new Spark(
+            this.rect().center,
+            angle,
+            5 + Math.random(),
+            "red"
+          ));
+          this.game.sparks.push(new Spark(
+            this.rect().center,
+            angle,
+            4 + Math.random(),
+            "yellow","white"
+          ));
+        this.game.particles.push(new Particle(
+          this.game, "dash",
+          this.rect().center,
+          [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5],
+          Math.floor(Math.random() * 8)
+          ));
+      }
+      this.game.sparks.push(new Spark(
+      this.rect().center,
+      0,
+      8 + Math.random()
+      ));
+      this.game.sparks.push(new Spark(
+      this.rect().center,
+      Math.PI,
+      8 + Math.random(),
+      "black"
+      ));
+      //actuall kill in memory
+      return true;
+    }
+    
+    //Killing Enemy by special Attacks
+    if(this.game.player.atkHitbox && this.game.player.action == "strongAttack") {
+      if(this.game.player.atkHitbox.collideRect(this.rect())) {
+        if(this.game.player.action == "strongAttack") {
+          if(!this.knockBackTimer) {
+            this.velocity[1] = -7 -(Math.random()*2);
+            let dir = Math.sign(this.rect().centerX - this.game.player.rect().centerX);
+            this.velocity[0] = dir * 5;
+            this.knockBackTimer = 60;
+            this.dead = true;
+          }
+        }
+      }
+    }
+    //Killing Enemy bu Physical Attack
+    else if(this.game.player.atkHitbox) {
+      if(this.rect().collideRect(this.game.player.atkHitbox)) {
+        this.game.screenShake = Math.max(18, this.game.screenShake);
+        let angle = 0;
+        for (let i = 0; i < 15; i++) {
+          if(this.game.player.flip){
+            angle = (Math.PI * 0.8) + Math.random() * (Math.PI*0.5);
+          }else {
+            angle = (Math.PI * 1.7) + Math.random() * (Math.PI*0.5);
+          }
+          let speed = Math.random() * 5;
+          this.game.sparks.push(new Spark(
+          this.rect().center,
+          angle,
+          5 + Math.random(),
+          "#8B0000","pink"
+          ));}
+        return true;
+      }
+    }
+    //Killing Enemy by Dash
+    else if(Math.abs(this.game.player.dashing) >= 50) {
       if(this.rect().collideRect(this.game.player.rect())) {
         this.game.screenShake = Math.max(20, this.game.screenShake);
         for (let i = 0; i < 30; i++) {
@@ -795,48 +875,47 @@ class Executioner extends PhysicsEntity {
     this.attacking = 0;
     this.dealtDamage = false;
     this.currentAttackIndex = 0;
-    this.comboTimer = 60;
-    this.hurtTimer = 30;
+    this.nextAttackIndex = 0;
+    this.comboTimer = 290;
+    this.currentAnim = null;
+    this.hurtTimer = 0;
     this.attacks = [
-    { action: "attack1", duration: 110, hitboxDur: [80, 90], hitboxSize: [27, 40] },
-    { action: "attack2", duration: 90, hitboxDur: [30, 40], hitboxSize: [27, 40] },
+    { action: "attack1", duration: 110, hitboxDur: [70, 80], hitboxSize: [120, 250], damage: 9, knockBack:[0,-5]},
+    { action: "attack2", duration: 90, hitboxDur: [20, 30], hitboxSize: [145, 200], damage: 12, knockBack:[6,-4]},
     ];
+    this.hammerHitbox = null;
   }
     attack() {
     if (this.attacking) return;
   
     // Reset combo if time ran out
-    if (this.comboTimer <= 0) this.currentAttackIndex = 0;
+    if (this.comboTimer <= 0) this.nextAttackIndex = 0;
   
     // Set current attack
-    const attackData = this.attacks[this.currentAttackIndex];
+    const attackData = this.attacks[this.nextAttackIndex];
     this.attacking = attackData.duration;
     this.currentAnim = attackData.action;
     this.frameCounter = 0; //Resetting frame at start of each attack
     this.setAction(this.currentAnim);
-  
+    this.dealtDamage = false;
     // Move to next attack in combo
-    this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
+    this.currentAttackIndex = this.nextAttackIndex;
+    this.nextAttackIndex = (this.nextAttackIndex + 1) % this.attacks.length;
     // Reset combo timer
-    this.comboTimer = 60;
+    this.comboTimer = 290;
   }
   
   getHitbox() {
-    let index = null;
-    if(this.action == "attack2") {
-      index = 1;
-    } else {
-      index = Math.max(this.currentAttackIndex - 1, 0);
-    }
+    let index = this.currentAttackIndex;
     const hSize = [
       this.attacks[index].hitboxSize[0],
       this.attacks[index].hitboxSize[1]
     ];
     const hPos = [0, this.rect().centerY - hSize[1] / 2];
     if(this.flip) {
-      hPos[0] = this.rect().left() - hSize[0];
+      hPos[0] = this.rect().centerX - 20;
     } else{
-      hPos[0] = this.rect().right();
+      hPos[0] = this.rect().centerX - hSize[0] + 20;
     }
     const rect = new Rect(hPos[0], hPos[1], hSize[0], hSize[1]);
     return rect;
@@ -848,11 +927,29 @@ class Executioner extends PhysicsEntity {
     if(this.comboTimer) this.comboTimer -= 1;
     if(this.hurtTimer) this.hurtTimer -= 1;
     if(movement[0] != 0) this.flip = !this.flip;
-    if(this.pos[0] < this.game.player.pos[0] && this.flip) {
-    this.attack();
-    }
+    //Resetting till here
     
-    if (this.hurtTimer) {
+    //Attacking logic
+    if(this.attacking === 0 &&(this.pos[0] < this.game.player.pos[0] && this.flip || this.pos[0] > this.game.player.pos[0] && !this.flip)) {
+        this.attack();
+    }
+    if(this.attacking) {
+      this.frameCounter += 1;
+      if(this.frameCounter <= this.attacks[this.currentAttackIndex].hitboxDur[1] && this.frameCounter >= this.attacks[this.currentAttackIndex].hitboxDur[0]) {
+        this.hammerHitbox = this.getHitbox();
+        if(this.hammerHitbox.collideRect(this.game.player.rect()) && !this.dealtDamage) {
+          const attackData = this.attacks[this.currentAttackIndex];
+          this.game.player.takeDamage(
+            attackData.damage,
+            20,
+            attackData.knockBack,
+            !this.flip
+          );
+          this.dealtDamage = true;
+        }
+      } else{this.hammerHitbox = null;}
+      this.setAction(this.currentAnim);
+    }else if (this.hurtTimer) {
       this.setAction("hurt");
       this.walkShake = 0;
     } else if(movement[0]!=0) {
@@ -870,6 +967,10 @@ class Executioner extends PhysicsEntity {
   
   render(surf, offset=[0, 0]) {
     super.render(surf, offset);
+    if(this.hammerHitbox) {
+      surf.strokeStyle = "green";
+      surf.strokeRect(this.hammerHitbox.x - offset[0], this.hammerHitbox.y - offset[1], this.hammerHitbox.width, this.hammerHitbox.height);
+    }
   }
 }
 
@@ -884,6 +985,7 @@ class Player extends PhysicsEntity {
     this.dashing = 0;
     this.xSpeed = 2.5;
     this.invincible = 0;
+    this.hurtTimer = 0;
     this.attacking = 0;
     this.frameCounter = 0;
     this.currentAttackIndex = 0;
@@ -896,9 +998,13 @@ class Player extends PhysicsEntity {
     this.comboTimer = 60;
     this.atkHitbox = null;
     this.doubleTapCounter = 0;
-    this.doubleTapTimer = 60;
+    this.doubleTapTimer = 90;
     this.attackPressed = false;
     this.dashAttack = 0;
+    this.strongAttack = 0;
+    this.ultShake = false;
+    
+    this.pProjectiles = [];
   }
   attack() {
     if (this.attacking) return;
@@ -918,6 +1024,17 @@ class Player extends PhysicsEntity {
     this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
     // Reset combo timer
     this.comboTimer = 60;
+  }
+  
+  strongAtk() {
+    if(!this.strongAttack) {
+      this.strongAttack = 110;
+      this.invincible = 160;
+    }
+  }
+  
+  throwProjectile() {
+    
   }
   
   getHitbox() {
@@ -941,17 +1058,16 @@ class Player extends PhysicsEntity {
     return rect;
   }
   
-  takeDamage() {
+  takeDamage(damage, screenShake = 0, knockBack=[0,0], flip = null) {
   if (this.invincible) return;
   
-  this.game.screenShake = 20;
-  this.invincible = 30; // frames of invincibility
-  if(this.game.executioner.action == "attack1") {
-    this.velocity[1] = -4;
-    } else {
-      this.velocity[1] = -3;
-      this.velocity[0] = this.game.executioner.flip ? 5 : -5;
-    }
+  this.game.screenShake = screenShake;
+  this.invincible = 30;
+  this.hurtTimer = 32;
+  if(flip !== null) {
+    this.velocity[0] = knockBack[0]* (flip?-1:1);
+    this.velocity[1] = knockBack[1];
+  }
 }
   
   update(tilemap, movement=[0, 0])
@@ -963,6 +1079,8 @@ class Player extends PhysicsEntity {
     if (this.invincible) this.invincible--;
     if(this.attacking) this.attacking -= 1;
     if(this.dashAttack) this.dashAttack -= 1;
+    if(this.strongAttack) this.strongAttack -= 1;
+    if(this.hurtTimer) this.hurtTimer -= 1;
     if(this.comboTimer) {
       this.comboTimer = Math.max(0, this.comboTimer - 1);
       if(this.comboTimer === 0) {
@@ -1011,10 +1129,45 @@ class Player extends PhysicsEntity {
       this.dashAttack = 96;
     }
     
+    if(this.hurtTimer) {
+      this.setAction("hurt");
+    }
+    else if(this.strongAttack) {
+      this.setAction("strongAttack");
+      if(this.strongAttack == 100) {
+        this.velocity[1] = -5;
+        this.velocity[0] = this.flip ? -3.5 : 3.5;
+      }
+      if(this.strongAttack == 60) {
+        this.velocity[1] = 10;
+      }
+      if(this.grounded && this.strongAttack < 40 && !this.ultShake) {
+        this.game.screenShake = Math.max(30, this.game.screenShake);
+        this.ultShake = true;
+      }
+      //Strong Attack Hitboxx
+      if(this.strongAttack < 50 && this.grounded) {
+        this.atkHitbox = new Rect(this.rect().centerX - 250/2,
+          this.rect().bottom() - 15,
+          250,15
+        );
+      }
+    }else if(!this.strongAttack) {
+      this.ultShake = false;
     if (this.dashAttack) {
+      if(this.airTime > 4) {
+        this.dashAttack = 0;
+      }
       this.setAction("dashAttack");
       if (this.dashAttack == 60) {
-        this.dash();
+        this.velocity[0] = this.flip?-10:10;
+      }
+      if(this.dashAttack <= 24) {
+        if(this.flip) {
+          this.velocity[0] = Math.min(0, this.velocity[0] + 0.2);
+        } else {
+          this.velocity[0] = Math.max(0, this.velocity[0] - 0.2);
+        }
       }
     }else if (Math.abs(this.dashing) > 50) {
       if (this.action !== "dash") {
@@ -1023,11 +1176,12 @@ class Player extends PhysicsEntity {
     } else if (this.attacking) {
       if(this.frameCounter >= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[0] && this.frameCounter <= this.attacks[Math.max(this.currentAttackIndex -1 , 0)].hitboxDur[1]) {
         this.atkHitbox = this.getHitbox();
+        if(this.game.executioner) {
         if(this.atkHitbox.collideRect(this.game.executioner.rect())) {
           if(!this.game.executioner.hurtTimer) {
             this.game.executioner.hurtTimer = 30;
           }
-        }
+        }}
       }
       this.setAction(this.currentAnim);
     } else if(!this.wallSlide)
@@ -1040,7 +1194,8 @@ class Player extends PhysicsEntity {
       } else {
       this.setAction("idle");
       }
-    }
+    }}
+    
     //to make dash particle spawn at player
     let pPos = [
       this.rect().centerX + (this.flip? -7:7), this.rect().centerY
@@ -1092,10 +1247,10 @@ class Player extends PhysicsEntity {
   
   render(surf, offset = [0, 0]) {
     super.render(surf, offset);
-    if(this.atkHitbox){
+    /*if(this.atkHitbox){
       surf.fillStyle = "green";
       surf.fillRect(this.atkHitbox.x - offset[0], this.atkHitbox.y - offset[1], this.atkHitbox.width, this.atkHitbox.height);
-    }
+    }*/
   }
   
   jump()
@@ -1145,14 +1300,7 @@ class Player extends PhysicsEntity {
   
 }
 
-/*class Player2 extends Player {
-  constructor(game, pos, size) {
-    super(game, pos, size);
-  }
-}
-
-*/
-// --------------------- GAME -----------------------
+// ----- GAME ----------------------
 
 class Game {
   constructor(canvasId) {
@@ -1184,7 +1332,6 @@ class Game {
     this.lastTime = performance.now();
   }
   
-
   async assetLoadAll() {
     this.assets = {
       grass: await loadImages("tiles/grass", 8),
@@ -1200,10 +1347,11 @@ class Game {
       playerrun: new Animation(await cutImages("entities/player1/run.png", 8), 7),
       playerjump: new Animation(await cutImages("entities/player1/jump.png", 3), 24),
       playerdash: new Animation(await cutImages("entities/player1/dash.png", 7), 7),
+      playerhurt: new Animation(await cutImages("entities/player1/hurt.png", 4), 8, false),
       playerattack1: new Animation(await cutImages("entities/player1/attack1.png", 5), 8),
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
-      playerdashAttack: new Animation(await cutImages("entities/player1/dashattack.png", 9), 8),
+      playerdashAttack: new Animation(await cutImages("entities/player1/dashAttack.png", 9), 8),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
@@ -1236,9 +1384,8 @@ class Game {
     this.clouds = new Clouds(this.assets.clouds, 16);
     this.tilemap = new Tilemap(this, 32);
     this.player = new Player(this, [100, 50], [22, 46]);
-    this.executioner = new Executioner(this, [100, 100], [64, 128]);
+    this.executioner = null;
     await this.loadLevel(this.currentLevel);
-    
     this.start();
     
   }
@@ -1248,7 +1395,6 @@ class Game {
     await this.tilemap.load(`data/maps/${level}.json`);
     
     this.projectiles = [];
-    
     this.particles = [];
     this.sparks = [];
     this.scroll = [0, 0];
@@ -1256,12 +1402,18 @@ class Game {
     this.screenShake = 0;
     this.dead = 0;
     this.transition = -30;
-    this.loadingLevel = false;
+    this.loadingLevel = false
+    
+    //player reset
+    this.player.strongAttack = 0;
     
     this.leafSpawnners = [];
     for(let tree of this.tilemap.extract([["large_decor", 2]], true))
     {
       this.leafSpawnners.push(new Rect(tree.pos[0] + 4, tree.pos[1] + 4, 23, 13));
+    }
+    if (this.currentLevel == 3) {
+      this.executioner = new Executioner(this, [100, 100], [64, 128]);
     }
     
     this.enemies = [];
@@ -1273,7 +1425,7 @@ class Game {
         this.player.airTime = 0;
       } else if(spawner.variant == 1){
         this.enemies.push(new Enemy(this, [...spawner.pos], [16, 32]));
-      } else if(spawner.variant == 2){
+      } else if(spawner.variant == 2 && this.currentLevel == 3){
         this.executioner.pos = [...spawner.pos];
       }
     }
@@ -1292,19 +1444,19 @@ class Game {
     const deltaTime = (currentTime - this.lastTime) / 1000;
     this.lastTime = currentTime;
     
-    /*
+    
     if(!this.enemies.length)
     {
       this.transition = Math.min(50, this.transition + 1);
       if(this.transition >= 30) {
         if(!this.loadingLevel) {
           this.loadingLevel = true;
-          this.currentLevel = Math.min(2, this.currentLevel + 1);
+          this.currentLevel = Math.min(3, this.currentLevel + 1);
           this.loadLevel(this.currentLevel);
         }
         
       }
-    }*/
+    }
     if(this.transition < 0) {
       this.transition += 1;
     }
@@ -1363,6 +1515,7 @@ class Game {
       {
         if(this.player.rect().collidePoint(projectile[0]))
         {
+          if(!this.player.invincible) {
           this.dead += 1;
           this.screenShake = Math.max(20, this.screenShake);
           this.projectiles.splice(i, 1);
@@ -1380,6 +1533,7 @@ class Game {
               [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5],
               Math.floor(Math.random() * 8)
             ));
+          }
           }
         }
       }
@@ -1425,8 +1579,9 @@ class Game {
     }
     
     //Executioner Update
-    this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
-    
+    if(this.executioner) {
+      this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
+    }
     //Player Update
     if(!this.dead) {
       this.player.update(this.tilemap, [ this.movement[1] - this.movement[0], 0]);
@@ -1441,6 +1596,18 @@ class Game {
     
     this.tilemap.render(this.vctx, this.renderScroll);
     
+    //Player Projectile Render
+    for (let i = this.player.pProjectiles.length - 1; i >= 0; i--)
+    {
+      const p = this.player.pProjectiles[i];
+      const img = this.assets.pProjectile;
+      this.vctx.drawImage(img,
+      p[0][0] - img.width / 2 - this.renderScroll[0],
+      p[0][1] - img.height / 2 - this.renderScroll[1],
+      img.width * 2,
+      img.height * 2
+      );
+    }
     
     //Projectile Render
     for (let i = this.projectiles.length - 1; i >= 0; i--)
@@ -1461,15 +1628,17 @@ class Game {
     }
     
     //Executioner Render
+    if(this.executioner) {
+      this.executioner.render(this.vctx, this.renderScroll);
+      this.vctx.strokeStyle = "red";
+      this.vctx.strokeRect(
+      this.executioner.pos[0] - this.renderScroll[0],
+      this.executioner.pos[1] - this.renderScroll[1],
+      this.executioner.size[0],
+      this.executioner.size[1]
+      );
+    }
     
-    this.executioner.render(this.vctx, this.renderScroll);
-    this.vctx.strokeStyle = "red";
-    this.vctx.strokeRect(
-    this.executioner.pos[0] - this.renderScroll[0],
-    this.executioner.pos[1] - this.renderScroll[1],
-    this.executioner.size[0],
-    this.executioner.size[1]
-    );
     
     
     //Player Render
@@ -1562,68 +1731,19 @@ window.addEventListener("load", () => {
           game.player.doubleTapTimer = 60;
         }
         game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
-      });
-      rightBtn.addEventListener("touchend", () => {
-        game.movement[1] = false;
-      });
-    }
-    if (jumpBtn) {
-      jumpBtn.addEventListener("touchstart", () => {
-        game.player.jump();
-      });
-    }
-    if (dashBtn) {
-      dashBtn.addEventListener("touchstart", () => {
-        game.player.dash();
-      });
-    }
-    if (attackBtn) {
-      attackBtn.addEventListener("touchstart", () => {
-        game.player.attack();
-        game.player.attackPressed = true;
-      });
-    }
-    // Desktop keyboard controls
-    const keyState = {};
-    function handleKey(e, isDown) {
-      if (!game || !game.player) return;
-      let handled = false;
-      switch (e.code) {
-        case "ArrowLeft":
-        case "KeyA":
-          game.movement[0] = isDown;
-          handled = true;
-          break;
-        case "ArrowRight":
-        case "KeyD":
-          game.movement[1] = isDown;
-          handled = true;
-          break;
-        case "Space":
-        case "KeyW":
-        case "ArrowUp":
-          if (isDown && !keyState[e.code]) game.player.jump();
-          handled = true;
-          break;
-        case "ShiftLeft":
-        case "ShiftRight":
-        case "KeyK":
-          if (isDown && !keyState[e.code]) game.player.dash();
-          handled = true;
-          break;
-        case "KeyJ":
-        case "KeyZ":
-          if (isDown && !keyState[e.code]) {
-            if (typeof game.player.attack === "function") game.player.attack();
-            game.player.attackPressed = true;
-          }
-          handled = true;
-          break;
-      }
-      keyState[e.code] = isDown;
-      if (handled) e.preventDefault();
-    }
-    window.addEventListener("keydown", e => handleKey(e, true));
-    window.addEventListener("keyup", e => handleKey(e, false));
+    });
+    document.getElementById("rightBtn").addEventListener("touchend", () => {
+      game.movement[1] = false;
+    });
+    document.getElementById("jumpBtn").addEventListener("touchstart", () => {
+      game.player.jump();
+    });
+    document.getElementById("dashBtn").addEventListener("touchstart", () => {
+      game.player.dash();
+    });
+    document.getElementById("attackBtn").addEventListener("touchstart", () => {
+      game.player.attack();
+      game.player.attackPressed = true;
+    });
   })();
 });

@@ -1500,8 +1500,8 @@ class Game {
     this.screenShake = Math.max(0, this.screenShake - 1);
     this.clouds.update();
     // Cap max particles and sparks
-    const MAX_PARTICLES = 200;
-    const MAX_SPARKS = 100;
+    const MAX_PARTICLES = 500;
+    const MAX_SPARKS = 250;
     // Projectile Update
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       let projectile = this.projectiles[i];

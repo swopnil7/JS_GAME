@@ -780,7 +780,7 @@ class Executioner extends PhysicsEntity {
     this.nextAttackIndex = 0;
     this.comboTimer = 290;
     this.currentAnim = null;
-    this.hurtTimer = 30;
+    this.hurtTimer = 0;
     this.attacks = [
     { action: "attack1", duration: 110, hitboxDur: [70, 80], hitboxSize: [120, 250], damage: 9, knockBack:[0,-5]},
     { action: "attack2", duration: 90, hitboxDur: [20, 30], hitboxSize: [145, 200], damage: 12, knockBack:[6,-4]},
@@ -887,6 +887,7 @@ class Player extends PhysicsEntity {
     this.dashing = 0;
     this.xSpeed = 2.5;
     this.invincible = 0;
+    this.hurtTimer = 0;
     this.attacking = 0;
     this.frameCounter = 0;
     this.currentAttackIndex = 0;
@@ -962,7 +963,8 @@ class Player extends PhysicsEntity {
   if (this.invincible) return;
   
   this.game.screenShake = screenShake;
-  this.invincible = 30; // frames of invincibility
+  this.invincible = 30;
+  this.hurtTimer = 32;
   if(flip !== null) {
     this.velocity[0] = knockBack[0]* (flip?-1:1);
     this.velocity[1] = knockBack[1];
@@ -979,6 +981,7 @@ class Player extends PhysicsEntity {
     if(this.attacking) this.attacking -= 1;
     if(this.dashAttack) this.dashAttack -= 1;
     if(this.strongAttack) this.strongAttack -= 1;
+    if(this.hurtTimer) this.hurtTimer -= 1;
     if(this.comboTimer) {
       this.comboTimer = Math.max(0, this.comboTimer - 1);
       if(this.comboTimer === 0) {
@@ -1027,7 +1030,10 @@ class Player extends PhysicsEntity {
       this.dashAttack = 96;
     }
     
-    if(this.strongAttack) {
+    if(this.hurtTimer) {
+      this.setAction("hurt");
+    }
+    else if(this.strongAttack) {
       this.setAction("strongAttack");
       if(this.strongAttack == 100) {
         this.velocity[1] = -5;
@@ -1039,10 +1045,8 @@ class Player extends PhysicsEntity {
       if(this.grounded && this.strongAttack < 40 && !this.ultShake) {
         this.game.screenShake = Math.max(30, this.game.screenShake);
         this.ultShake = true;
-      }''
-    }
-    
-    if(!this.strongAttack) {
+      }
+    }else if(!this.strongAttack) {
       this.ultShake = false;
     if (this.dashAttack) {
       if(this.airTime > 4) {
@@ -1189,7 +1193,7 @@ class Player extends PhysicsEntity {
   
 }
 
-// --------------------- GAME -----------------------
+// ----- GAME ----------------------
 
 class Game {
   constructor(canvasId) {
@@ -1236,6 +1240,7 @@ class Game {
       playerrun: new Animation(await cutImages("entities/player1/run.png", 8), 7),
       playerjump: new Animation(await cutImages("entities/player1/jump.png", 3), 24),
       playerdash: new Animation(await cutImages("entities/player1/dash.png", 7), 7),
+      playerhurt: new Animation(await cutImages("entities/player1/hurt.png", 4), 8, false),
       playerattack1: new Animation(await cutImages("entities/player1/attack1.png", 5), 8),
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),

@@ -782,8 +782,8 @@ class Executioner extends PhysicsEntity {
     this.currentAnim = null;
     this.hurtTimer = 30;
     this.attacks = [
-    { action: "attack1", duration: 110, hitboxDur: [70, 80], hitboxSize: [70, 200] },
-    { action: "attack2", duration: 90, hitboxDur: [20, 30], hitboxSize: [95, 200] },
+    { action: "attack1", duration: 110, hitboxDur: [70, 80], hitboxSize: [120, 250], damage: 9, knockBack:[0,-5]},
+    { action: "attack2", duration: 90, hitboxDur: [20, 30], hitboxSize: [145, 200], damage: 12, knockBack:[6,-4]},
     ];
     this.hammerHitbox = null;
   }
@@ -799,6 +799,7 @@ class Executioner extends PhysicsEntity {
     this.currentAnim = attackData.action;
     this.frameCounter = 0; //Resetting frame at start of each attack
     this.setAction(this.currentAnim);
+    this.dealtDamage = false;
     // Move to next attack in combo
     this.currentAttackIndex = this.nextAttackIndex;
     this.nextAttackIndex = (this.nextAttackIndex + 1) % this.attacks.length;
@@ -838,6 +839,16 @@ class Executioner extends PhysicsEntity {
       this.frameCounter += 1;
       if(this.frameCounter <= this.attacks[this.currentAttackIndex].hitboxDur[1] && this.frameCounter >= this.attacks[this.currentAttackIndex].hitboxDur[0]) {
         this.hammerHitbox = this.getHitbox();
+        if(this.hammerHitbox.collideRect(this.game.player.rect()) && !this.dealtDamage) {
+          const attackData = this.attacks[this.currentAttackIndex];
+          this.game.player.takeDamage(
+            attackData.damage,
+            20,
+            attackData.knockBack,
+            !this.flip
+          );
+          this.dealtDamage = true;
+        }
       } else{this.hammerHitbox = null;}
       this.setAction(this.currentAnim);
     }else if (this.hurtTimer) {
@@ -859,8 +870,8 @@ class Executioner extends PhysicsEntity {
   render(surf, offset=[0, 0]) {
     super.render(surf, offset);
     if(this.hammerHitbox) {
-      surf.fillStyle = "green";
-      surf.fillRect(this.hammerHitbox.x - offset[0], this.hammerHitbox.y - offset[1], this.hammerHitbox.width, this.hammerHitbox.height);
+      surf.strokeStyle = "green";
+      surf.strokeRect(this.hammerHitbox.x - offset[0], this.hammerHitbox.y - offset[1], this.hammerHitbox.width, this.hammerHitbox.height);
     }
   }
 }
@@ -947,17 +958,15 @@ class Player extends PhysicsEntity {
     return rect;
   }
   
-  takeDamage() {
+  takeDamage(damage, screenShake = 0, knockBack=[0,0], flip = null) {
   if (this.invincible) return;
   
-  this.game.screenShake = 20;
+  this.game.screenShake = screenShake;
   this.invincible = 30; // frames of invincibility
-  if(this.game.executioner.action == "attack1") {
-    this.velocity[1] = -4;
-    } else {
-      this.velocity[1] = -3;
-      this.velocity[0] = this.game.executioner.flip ? 5 : -5;
-    }
+  if(flip !== null) {
+    this.velocity[0] = knockBack[0]* (flip?-1:1);
+    this.velocity[1] = knockBack[1];
+  }
 }
   
   update(tilemap, movement=[0, 0])

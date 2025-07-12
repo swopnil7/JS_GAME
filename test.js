@@ -1,4 +1,3 @@
-
 class Rect {
   constructor(x, y, width, height) {
     this.x = x; this.y = y;
@@ -230,27 +229,21 @@ class Particle {
     this.animation.frame = frame;
   }
   
-  update()
-  {
+  update() {
     let kill = false;
-    if(this.animation.done){kill=true;}
-    
+    if (this.animation.done) { kill = true; }
     this.pos[0] += this.velocity[0];
     this.pos[1] += this.velocity[1];
-    
     this.animation.update();
     return kill;
   }
-  
-  render(surf, offset=[0, 0])
-  {
+  render(surf, offset = [0, 0]) {
+    // Cull if offscreen
     const img = this.animation.img();
-    surf.drawImage(img,
-    this.pos[0] - offset[0] - Math.floor(img.width / 2),
-    this.pos[1] - offset[1] - Math.floor(img.height / 2),
-      img.width * 2,
-      img.height * 2
-    );
+    const x = this.pos[0] - offset[0] - Math.floor(img.width / 2);
+    const y = this.pos[1] - offset[1] - Math.floor(img.height / 2);
+    if (x + img.width * 2 < 0 || x > surf.canvas.width || y + img.height * 2 < 0 || y > surf.canvas.height) return;
+    surf.drawImage(img, x, y, img.width * 2, img.height * 2);
   }
 }
 
@@ -273,16 +266,16 @@ class Spark{
   }
   
   render(surf, offset=[0, 0]) {
-    //making a pointy fiamond spark
+    // Cull if offscreen
+    let x = this.pos[0] - offset[0];
+    let y = this.pos[1] - offset[1];
+    if (x < -20 || x > surf.canvas.width + 20 || y < -20 || y > surf.canvas.height + 20) return;
     let renderPoints = [
       [this.pos[0] + Math.cos(this.angle) * this.speed * 6 - offset[0], this.pos[1] + Math.sin(this.angle) * this.speed * 6 - offset[1]],
-      
       [this.pos[0] + Math.cos(this.angle + Math.PI * 0.5) * this.speed * 0.5 - offset[0], this.pos[1] + Math.sin(this.angle + Math.PI * 0.5) * this.speed * 0.5 - offset[1]],
       [this.pos[0] + Math.cos(this.angle + Math.PI) * this.speed * 6 - offset[0], this.pos[1] + Math.sin(this.angle + Math.PI) * this.speed * 6 - offset[1]],
-      
       [this.pos[0] + Math.cos(this.angle - Math.PI * 0.5) * this.speed * 0.5 - offset[0], this.pos[1] + Math.sin(this.angle - Math.PI * 0.5) * this.speed * 0.5 - offset[1]],
     ];
-    
     drawPolygon(surf, renderPoints, true, true, this.fColor, this.sColor);
   }
   
@@ -1305,33 +1298,50 @@ class Player extends PhysicsEntity {
 class Game {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
-    this.canvas.width = this.canvas.clientWidth;
-    this.canvas.height = this.canvas.clientHeight;
+    // Set up crisp rendering for high-DPI screens
+    this.setCanvasResolution();
     this.ctx = this.canvas.getContext("2d");
-    this.ctx.imageSmoothingEnabled = false;
-
-    this.virtualWidth = 360;
-    this.virtualHeight = 640;
+    // Make canvas rendering pixelated for retro look
+    this.canvas.style.imageRendering = 'pixelated';
+    this.running = false;
+    this.currentLevel = 0;
+    this.movement = [false, false];
+    this.screenShake = 0;
+    this.lastTime = performance.now();
+    // Responsive virtual canvas setup
+    this.setVirtualSize();
     this.virtualCanvas = document.createElement("canvas");
     this.virtualCanvas.width = this.virtualWidth;
     this.virtualCanvas.height = this.virtualHeight;
     this.vctx = this.virtualCanvas.getContext("2d");
-    this.vctx.imageSmoothingEnabled = false;
-    
     this.transitionSurf = document.createElement("canvas");
     this.transitionSurf.width = this.virtualWidth;
     this.transitionSurf.height = this.virtualHeight;
     this.tCtx = this.transitionSurf.getContext("2d");
-    this.running = false;
-    this.currentLevel = 0;
-
-    this.movement = [false, false];
-    
-    this.screenShake = 0;
-    
-    this.lastTime = performance.now();
   }
-  
+
+  setCanvasResolution() {
+    // Set canvas size in physical pixels for crisp rendering
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = Math.round(this.canvas.clientWidth * dpr);
+    this.canvas.height = Math.round(this.canvas.clientHeight * dpr);
+    this.canvas.style.width = this.canvas.clientWidth + 'px';
+    this.canvas.style.height = this.canvas.clientHeight + 'px';
+    if (this.ctx) {
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset any transforms
+      this.ctx.scale(dpr, dpr);
+    }
+  }
+
+  setVirtualSize() {
+    // Set the virtual width and height based on window size
+    this.virtualWidth = this.getTargetVirtualWidth();
+    this.virtualHeight = 360;
+    if (window.innerHeight > 400 && window.innerWidth > 600) {
+      this.virtualHeight = Math.max(360, Math.floor(window.innerHeight * 0.95));
+    }
+  }
+
   async assetLoadAll() {
     this.assets = {
       grass: await loadImages("tiles/grass", 8),
@@ -1359,16 +1369,13 @@ class Game {
       gun: await loadImg("gun.png"),
       projectile: await loadImg("projectile.png"),
       executioneridle: new Animation(await cutImages("entities/executioner/idle.png", 12), 8),
-      executionerwalk: new Animation(await cutImages("entities/executioner/walk.png", 12), 7
-      ),
+      executionerwalk: new Animation(await cutImages("entities/executioner/walk.png", 12), 7),
       executionerattack1: new Animation(await cutImages("entities/executioner/attack1.png", 11), 10),
       executionerattack2: new Animation(await cutImages("entities/executioner/attack2.png", 9), 10),
       executionerhurt: new Animation(await cutImages("entities/executioner/hurt.png", 6), 5, false),
       executionerdeath: new Animation(await cutImages("entities/executioner/death.png", 11), 12),
     };
-    
     /*this.audioCtx = new(window.AudioContext || window.webkitAudioContext)();*/
-    
     this.sfx = {
       hit: new Audio("data/sfx/hit.wav"),
       bg: new Audio("data/sfx/ambience.wav"),
@@ -1380,15 +1387,14 @@ class Game {
     this.sfx.shoot.volume = 0.4;
     this.sfx.jump.volume = 0.7;
     this.sfx.hit.volume = 0.8;*/
-    
     this.clouds = new Clouds(this.assets.clouds, 16);
     this.tilemap = new Tilemap(this, 32);
     this.player = new Player(this, [100, 50], [22, 46]);
     this.executioner = null;
     await this.loadLevel(this.currentLevel);
     this.start();
-    
   }
+  
   
   async loadLevel(level)
   {
@@ -1432,6 +1438,7 @@ class Game {
     this.lastTime = performance.now();
   }
 
+  
   start() {
     if(!this.running) {
       this.running = true;
@@ -1439,6 +1446,7 @@ class Game {
     }
   }
 
+  
   gameLoop(currentTime) {
     
     const deltaTime = (currentTime - this.lastTime) / 1000;
@@ -1485,224 +1493,212 @@ class Game {
     requestAnimationFrame(this.gameLoop.bind(this));
   }
 
+  
   update(dt) {
-    
     this.screenShake = Math.max(0, this.screenShake - 1);
-    
     this.clouds.update();
-    
-    //Projectile Update
-    for (let i = this.projectiles.length - 1; i >= 0; i--) 
-    {
+    // Cap max particles and sparks
+    const MAX_PARTICLES = 200;
+    const MAX_SPARKS = 100;
+    // Projectile Update
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
       let projectile = this.projectiles[i];
       projectile[0][0] += projectile[1];
       projectile[2] += 1;
-      
       //Remove Projectile Condition
-      if (this.tilemap.solidCheck(projectile[0]))
-      {
+      if (this.tilemap.solidCheck(projectile[0])) {
         this.projectiles.splice(i, 1);
-        for(let i=0; i<4; i++) {
-          this.sparks.push(new Spark(projectile[0],
-          Math.random() - 0.5 + (projectile[1] > 0 ? Math.PI:0),
-            3 + Math.random(),"#AAAAAA","#555555"
-          ));
-        }
-      } else if (projectile[2] > 360)
-      {
-        this.projectiles.splice(i, 1);
-      } else if (Math.abs(this.player.dashing) < 50)
-      {
-        if(this.player.rect().collidePoint(projectile[0]))
-        {
-          if(!this.player.invincible) {
-          this.dead += 1;
-          this.screenShake = Math.max(20, this.screenShake);
-          this.projectiles.splice(i, 1);
-          for(let i=0; i<30; i++) {
-            let angle = Math.random() * Math.PI * 2;
-            let speed = Math.random() * 5;
-            this.sparks.push(new Spark(
-              this.player.rect().center,
-              angle,
-              4 + Math.random(),"#8B0000","#B22222"
-            ));
-            this.particles.push(new Particle(
-              this, "dash",
-              this.player.rect().center,
-              [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5],
-              Math.floor(Math.random() * 8)
-            ));
+        if (this.sparks.length < MAX_SPARKS - 4) {
+          for (let j = 0; j < 4; j++) {
+            this.sparks.push(new Spark(projectile[0], Math.random() - 0.5 + (projectile[1] > 0 ? Math.PI : 0), 3 + Math.random(), "#AAAAAA", "#555555"));
           }
+        }
+      } else if (projectile[2] > 360) {
+        this.projectiles.splice(i, 1);
+      } else if (Math.abs(this.player.dashing) < 50) {
+        if (this.player.rect().collidePoint(projectile[0])) {
+          if (!this.player.invincible) {
+            this.dead += 1;
+            this.screenShake = Math.max(20, this.screenShake);
+            this.projectiles.splice(i, 1);
+            if (this.sparks.length < MAX_SPARKS - 30 && this.particles.length < MAX_PARTICLES - 30) {
+              for (let j = 0; j < 30; j++) {
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 5;
+                this.sparks.push(new Spark(this.player.rect().center, angle, 4 + Math.random(), "#8B0000", "#B22222"));
+                this.particles.push(new Particle(this, "dash", this.player.rect().center, [Math.cos(angle + Math.PI) * speed * 0.5, Math.sin(angle + Math.PI) * speed * 0.5], Math.floor(Math.random() * 8)));
+              }
+            }
           }
         }
       }
     }
-    
-    //Leaf Update
-    for(let rect of this.leafSpawnners)
-    {
-      if(Math.random() * 49999 < rect.width * rect.height)
-      {
-        let pos = [rect.x + Math.random()* rect.width, rect.y + Math.random()*rect.height];
-        this.particles.push(new Particle(this, 'leaf' ,pos, [-0.1, 0.3]));
+    // Leaf Update (limit spawn rate)
+    if (this.particles.length < MAX_PARTICLES - 5) {
+      for (let rect of this.leafSpawnners) {
+        if (Math.random() * 49999 < rect.width * rect.height) {
+          let pos = [rect.x + Math.random() * rect.width, rect.y + Math.random() * rect.height];
+          this.particles.push(new Particle(this, 'leaf', pos, [-0.1, 0.3]));
+        }
       }
     }
-    
-    //Enemy Update
-    for(let i = this.enemies.length - 1; i>=0; i--)
-    {
+    // Enemy Update
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
       const kill = this.enemies[i].update(this.tilemap, [0, 0]);
-      if(kill) {
+      if (kill) {
         this.enemies.splice(i, 1);
       }
     }
-    //Sparks Update
-    for(let i = this.sparks.length - 1; i>=0; i--) {
+    // Sparks Update (remove oldest if over cap)
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
       const kill = this.sparks[i].update();
-      if(kill) {
+      if (kill) {
         this.sparks.splice(i, 1);
       }
-      
     }
-    
-    //Particle Update
+    if (this.sparks.length > MAX_SPARKS) this.sparks.length = MAX_SPARKS;
+    // Particle Update (remove oldest if over cap)
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const kill = this.particles[i].update();
-      if (this.particles[i].pType == 'leaf')
-        {
-          this.particles[i].pos[0] += Math.sin(this.particles[i].animation.frame * 0.035) * 0.3;
-        }
-        if (kill) {
+      if (this.particles[i].pType == 'leaf') {
+        this.particles[i].pos[0] += Math.sin(this.particles[i].animation.frame * 0.035) * 0.3;
+      }
+      if (kill) {
         this.particles.splice(i, 1);
-        }
+      }
     }
-    
-    //Executioner Update
-    if(this.executioner) {
+    if (this.particles.length > MAX_PARTICLES) this.particles.length = MAX_PARTICLES;
+    // Executioner Update
+    if (this.executioner) {
       this.executioner.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
     }
-    //Player Update
-    if(!this.dead) {
-      this.player.update(this.tilemap, [ this.movement[1] - this.movement[0], 0]);
+    // Player Update
+    if (!this.dead) {
+      this.player.update(this.tilemap, [this.movement[1] - this.movement[0], 0]);
     }
-    
   }
 
+  
   render() {
+    // If window size changed, update virtual canvas size
+    if (this.virtualWidth !== this.getTargetVirtualWidth()) {
+      this.setVirtualSize();
+      this.virtualCanvas.width = this.virtualWidth;
+      this.virtualCanvas.height = this.virtualHeight;
+      this.transitionSurf.width = this.virtualWidth;
+      this.transitionSurf.height = this.virtualHeight;
+    }
     this.vctx.drawImage(this.assets.background, 0, 0, this.virtualWidth, this.virtualHeight);
-    
     this.clouds.render(this.vctx, this.renderScroll);
-    
     this.tilemap.render(this.vctx, this.renderScroll);
-    
     //Player Projectile Render
-    for (let i = this.player.pProjectiles.length - 1; i >= 0; i--)
-    {
+    for (let i = this.player.pProjectiles.length - 1; i >= 0; i--) {
       const p = this.player.pProjectiles[i];
       const img = this.assets.pProjectile;
-      this.vctx.drawImage(img,
-      p[0][0] - img.width / 2 - this.renderScroll[0],
-      p[0][1] - img.height / 2 - this.renderScroll[1],
-      img.width * 2,
-      img.height * 2
-      );
+      this.vctx.drawImage(img, p[0][0] - img.width / 2 - this.renderScroll[0], p[0][1] - img.height / 2 - this.renderScroll[1], img.width * 2, img.height * 2);
     }
-    
     //Projectile Render
-    for (let i = this.projectiles.length - 1; i >= 0; i--)
-    {
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       const img = this.assets.projectile;
-      this.vctx.drawImage(img,
-      p[0][0] - img.width / 2 - this.renderScroll[0],
-      p[0][1] - img.height / 2 - this.renderScroll[1],
-      img.width * 2,
-      img.height * 2
-      );
+      this.vctx.drawImage(img, p[0][0] - img.width / 2 - this.renderScroll[0], p[0][1] - img.height / 2 - this.renderScroll[1], img.width * 2, img.height * 2);
     }
-
-    for (let enemy of [...this.enemies])
-    {
+    for (let enemy of [...this.enemies]) {
       enemy.render(this.vctx, this.renderScroll);
     }
-    
     //Executioner Render
-    if(this.executioner) {
+    if (this.executioner) {
       this.executioner.render(this.vctx, this.renderScroll);
       this.vctx.strokeStyle = "red";
       this.vctx.strokeRect(
-      this.executioner.pos[0] - this.renderScroll[0],
-      this.executioner.pos[1] - this.renderScroll[1],
-      this.executioner.size[0],
-      this.executioner.size[1]
+        this.executioner.pos[0] - this.renderScroll[0],
+        this.executioner.pos[1] - this.renderScroll[1],
+        this.executioner.size[0],
+        this.executioner.size[1]
       );
     }
-    
-    
-    
     //Player Render
-    if(!this.dead) {
+    if (!this.dead) {
       this.player.render(this.vctx, this.renderScroll);
     }
     //player debug box
     this.vctx.strokeStyle = 'blue';
-    this.vctx.strokeRect(this.player.pos[0]- this.renderScroll[0],this.player.pos[1] - this.renderScroll[1], ...this.player.size);
-    
+    this.vctx.strokeRect(this.player.pos[0] - this.renderScroll[0], this.player.pos[1] - this.renderScroll[1], ...this.player.size);
     //Sparks Render
     for (let i = this.sparks.length - 1; i >= 0; i--) {
       this.sparks[i].render(this.vctx, this.renderScroll);
     }
-    
     //Particle Render
     for (let i = this.particles.length - 1; i >= 0; i--) {
       this.particles[i].render(this.vctx, this.renderScroll);
     }
-    
-    const scale = Math.max(1, Math.floor(Math.min(
+    // Responsive scaling
+    const scale = Math.min(
       this.canvas.width / this.virtualWidth,
       this.canvas.height / this.virtualHeight
-    )));
+    );
     const offsetX = (this.canvas.width - this.virtualWidth * scale) / 2;
     const offsetY = (this.canvas.height - this.virtualHeight * scale) / 2;
-
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    
     if (this.transition) {
       this.tCtx.clearRect(0, 0, this.virtualWidth, this.virtualHeight);
       this.tCtx.fillStyle = "black";
       this.tCtx.fillRect(0, 0, this.virtualWidth, this.virtualHeight);
       const radius = Math.abs((30 - Math.abs(this.transition)) * 16);
-      //Yesle aaba j sukai draw garyk teslai canvas bata cutout gardinxa Basicly pen is erazer
       this.tCtx.globalCompositeOperation = "destination-out";
       this.tCtx.beginPath();
       this.tCtx.arc(
-      Math.floor(this.virtualWidth / 2),
-      Math.floor(this.virtualHeight / 2),
-      radius,
-      0,
-      Math.PI * 2
+        Math.floor(this.virtualWidth / 2),
+        Math.floor(this.virtualHeight / 2),
+        radius,
+        0,
+        Math.PI * 2
       );
       this.tCtx.fill();
-      this.tCtx.globalCompositeOperation = "source-over"; // Basicly Removing erazer
+      this.tCtx.globalCompositeOperation = "source-over";
       this.vctx.drawImage(this.transitionSurf, 0, 0);
     }
-    
     let screenShakeOffset = [Math.random() * this.screenShake - this.screenShake / 2, Math.random() * this.screenShake - this.screenShake / 2];
     this.ctx.drawImage(
       this.virtualCanvas,
-      Math.floor(offsetX) + screenShakeOffset[0],
-      Math.floor(offsetY) + screenShakeOffset[1],
+      Math.floor(offsetX + screenShakeOffset[0]),
+      Math.floor(offsetY + screenShakeOffset[1]),
       Math.floor(this.virtualWidth * scale),
       Math.floor(this.virtualHeight * scale)
     );
   }
+
+  
+  getTargetVirtualWidth() {
+    if (window.innerWidth > 600) {
+      return Math.max(720, Math.floor(window.innerWidth * 0.95));
+    } else {
+      return 360;
+    }
+  }
 }
 
+let game;
 window.addEventListener("load", () => {
+  // Hide controller section on PCs (non-touch devices) with !important
+  if (!('ontouchstart' in window)) {
+    const controller = document.getElementById("controller");
+    if (controller) controller.style.setProperty('display', 'none', 'important');
+  }
+  // Responsive: update canvas and virtual size on window resize
+  window.addEventListener("resize", () => {
+    if (game) {
+      game.setVirtualSize();
+      game.virtualCanvas.width = game.virtualWidth;
+      game.virtualCanvas.height = game.virtualHeight;
+      game.transitionSurf.width = game.virtualWidth;
+      game.transitionSurf.height = game.virtualHeight;
+      game.setCanvasResolution();
+    }
+  });
   (async () => {
     console.log("window loaded");
-    const game = new Game("gameCanvas");
+    game = new Game("gameCanvas");
     await game.assetLoadAll();
 
     // Check if control buttons exist before adding event listeners
@@ -1731,19 +1727,68 @@ window.addEventListener("load", () => {
           game.player.doubleTapTimer = 60;
         }
         game.player.doubleTapCounter = Math.min(2, game.player.doubleTapCounter + 1);
-    });
-    document.getElementById("rightBtn").addEventListener("touchend", () => {
-      game.movement[1] = false;
-    });
-    document.getElementById("jumpBtn").addEventListener("touchstart", () => {
-      game.player.jump();
-    });
-    document.getElementById("dashBtn").addEventListener("touchstart", () => {
-      game.player.dash();
-    });
-    document.getElementById("attackBtn").addEventListener("touchstart", () => {
-      game.player.attack();
-      game.player.attackPressed = true;
-    });
+      });
+      rightBtn.addEventListener("touchend", () => {
+        game.movement[1] = false;
+      });
+    }
+    if (jumpBtn) {
+      jumpBtn.addEventListener("touchstart", () => {
+        game.player.jump();
+      });
+    }
+    if (dashBtn) {
+      dashBtn.addEventListener("touchstart", () => {
+        game.player.dash();
+      });
+    }
+    if (attackBtn) {
+      attackBtn.addEventListener("touchstart", () => {
+        game.player.attack();
+        game.player.attackPressed = true;
+      });
+    }
+    // Desktop keyboard controls
+    const keyState = {};
+    function handleKey(e, isDown) {
+      if (!game || !game.player) return;
+      let handled = false;
+      switch (e.code) {
+        case "ArrowLeft":
+        case "KeyA":
+          game.movement[0] = isDown;
+          handled = true;
+          break;
+        case "ArrowRight":
+        case "KeyD":
+          game.movement[1] = isDown;
+          handled = true;
+          break;
+        case "Space":
+        case "KeyW":
+        case "ArrowUp":
+          if (isDown && !keyState[e.code]) game.player.jump();
+          handled = true;
+          break;
+        case "ShiftLeft":
+        case "ShiftRight":
+        case "KeyK":
+          if (isDown && !keyState[e.code]) game.player.dash();
+          handled = true;
+          break;
+        case "KeyJ":
+        case "KeyZ":
+          if (isDown && !keyState[e.code]) {
+            if (typeof game.player.attack === "function") game.player.attack();
+            game.player.attackPressed = true;
+          }
+          handled = true;
+          break;
+      }
+      keyState[e.code] = isDown;
+      if (handled) e.preventDefault();
+    }
+    window.addEventListener("keydown", e => handleKey(e, true));
+    window.addEventListener("keyup", e => handleKey(e, false));
   })();
 });

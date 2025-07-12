@@ -1303,6 +1303,7 @@ class Game {
     this.ctx = this.canvas.getContext("2d");
     // Make canvas rendering pixelated for retro look
     this.canvas.style.imageRendering = 'pixelated';
+    this.ctx.imageSmoothingEnabled = false;
     this.running = false;
     this.currentLevel = 0;
     this.movement = [false, false];
@@ -1314,10 +1315,12 @@ class Game {
     this.virtualCanvas.width = this.virtualWidth;
     this.virtualCanvas.height = this.virtualHeight;
     this.vctx = this.virtualCanvas.getContext("2d");
+    this.vctx.imageSmoothingEnabled = false;
     this.transitionSurf = document.createElement("canvas");
     this.transitionSurf.width = this.virtualWidth;
     this.transitionSurf.height = this.virtualHeight;
     this.tCtx = this.transitionSurf.getContext("2d");
+    this.tCtx.imageSmoothingEnabled = false;
   }
 
   setCanvasResolution() {

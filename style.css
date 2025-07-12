@@ -2,58 +2,118 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100vh;
+  width: 100vw;
   background: #000;
   overflow: hidden;
 }
 
-#ui {
-  width: 100%;
-  height: 200px;
-  display: block;
-  background-color: dimgrey;
+body {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 100vh;
+  min-width: 100vw;
+  height: 100vh;
+  width: 100vw;
+}
+
+#gameCanvas {
+  flex: 1 1 auto;
+  width: 100vw;
+  height: 0;
+  min-height: 0;
+  min-width: 0;
+  background: #222;
+  image-rendering: pixelated;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
+}
+
+#ui {
+  width: 100vw;
+  max-width: 100vw;
+  min-width: 0;
+  margin: 0 auto;
+  height: auto;
+  background-color: #44496a;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 16px; /* spacing between buttons */
+  gap: 12px;
+  border-radius: 0 0 0 0;
+  flex-shrink: 0;
+  padding: 12px 0;
 }
 
 .ui-elem {
-  width : 40%;
+  width: auto;
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
-}
-canvas {
-  flex-grow: 1;
-  background: #222;
-  image-rendering: pixelated;
-  height: 80%;
-  width: 100vw;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
 }
 
 /* Button styling */
 .btn {
-  width: 60px;
-  height: 60px;
-  margin-left: 10px;
+  width: 56px;
+  height: 56px;
+  margin-left: 0;
   background: rgba(255, 255, 255, 0.4);
-  border-radius: 30%;
+  border-radius: 16px;
   color: black;
-  font-size: 28px;
+  font-size: 20px;
   display: flex;
   justify-content: center;
   align-items: center;
-  line-height: 60px;
+  line-height: 1;
   user-select: none;
+  flex: 0 0 56px;
+  min-width: 56px;
+  min-height: 56px;
+  max-width: 56px;
+  max-height: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-#attackBtn {
-  position: absolute;
-  right: 30px;
-  bottom: 90px;
+.btn span, .btn .btnTxt {
+  width: 100%;
+  text-align: center;
+  font-size: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-#ultBtn {
-  position: absolute;
-  right: 110px;
-  bottom: 90px;
+
+@media (min-width: 600px) {
+  #gameCanvas {
+    width: 100vw;
+    height: 0;
+    min-height: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .btn {
+    width: 72px;
+    height: 72px;
+    font-size: 28px;
+    border-radius: 30%;
+    line-height: 1;
+    min-width: 72px;
+    min-height: 72px;
+    max-width: 72px;
+    max-height: 72px;
+  }
+  #ui {
+    gap: 16px;
+    padding: 16px 0;
+  }
+  .ui-elem {
+    gap: 16px;
+  }
 }

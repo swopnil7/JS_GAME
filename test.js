@@ -1,4 +1,3 @@
-console.log("JS loaded");
 
 class Rect {
   constructor(x, y, width, height) {
@@ -778,48 +777,46 @@ class Executioner extends PhysicsEntity {
     this.attacking = 0;
     this.dealtDamage = false;
     this.currentAttackIndex = 0;
-    this.comboTimer = 60;
+    this.nextAttackIndex = 0;
+    this.comboTimer = 290;
+    this.currentAnim = null;
     this.hurtTimer = 30;
     this.attacks = [
-    { action: "attack1", duration: 110, hitboxDur: [80, 90], hitboxSize: [27, 40] },
-    { action: "attack2", duration: 90, hitboxDur: [30, 40], hitboxSize: [27, 40] },
+    { action: "attack1", duration: 110, hitboxDur: [70, 80], hitboxSize: [70, 200] },
+    { action: "attack2", duration: 90, hitboxDur: [20, 30], hitboxSize: [95, 200] },
     ];
+    this.hammerHitbox = null;
   }
     attack() {
     if (this.attacking) return;
   
     // Reset combo if time ran out
-    if (this.comboTimer <= 0) this.currentAttackIndex = 0;
+    if (this.comboTimer <= 0) this.nextAttackIndex = 0;
   
     // Set current attack
-    const attackData = this.attacks[this.currentAttackIndex];
+    const attackData = this.attacks[this.nextAttackIndex];
     this.attacking = attackData.duration;
     this.currentAnim = attackData.action;
     this.frameCounter = 0; //Resetting frame at start of each attack
     this.setAction(this.currentAnim);
-  
     // Move to next attack in combo
-    this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
+    this.currentAttackIndex = this.nextAttackIndex;
+    this.nextAttackIndex = (this.nextAttackIndex + 1) % this.attacks.length;
     // Reset combo timer
-    this.comboTimer = 60;
+    this.comboTimer = 290;
   }
   
   getHitbox() {
-    let index = null;
-    if(this.action == "attack2") {
-      index = 1;
-    } else {
-      index = Math.max(this.currentAttackIndex - 1, 0);
-    }
+    let index = this.currentAttackIndex;
     const hSize = [
       this.attacks[index].hitboxSize[0],
       this.attacks[index].hitboxSize[1]
     ];
     const hPos = [0, this.rect().centerY - hSize[1] / 2];
     if(this.flip) {
-      hPos[0] = this.rect().left() - hSize[0];
+      hPos[0] = this.rect().centerX - 20;
     } else{
-      hPos[0] = this.rect().right();
+      hPos[0] = this.rect().centerX - hSize[0] + 20;
     }
     const rect = new Rect(hPos[0], hPos[1], hSize[0], hSize[1]);
     return rect;
@@ -831,11 +828,19 @@ class Executioner extends PhysicsEntity {
     if(this.comboTimer) this.comboTimer -= 1;
     if(this.hurtTimer) this.hurtTimer -= 1;
     if(movement[0] != 0) this.flip = !this.flip;
-    if(this.pos[0] < this.game.player.pos[0] && this.flip) {
-    this.attack();
-    }
+    //Resetting till here
     
-    if (this.hurtTimer) {
+    //Attacking logic
+    if(this.attacking === 0 &&(this.pos[0] < this.game.player.pos[0] && this.flip || this.pos[0] > this.game.player.pos[0] && !this.flip)) {
+        this.attack();
+    }
+    if(this.attacking) {
+      this.frameCounter += 1;
+      if(this.frameCounter <= this.attacks[this.currentAttackIndex].hitboxDur[1] && this.frameCounter >= this.attacks[this.currentAttackIndex].hitboxDur[0]) {
+        this.hammerHitbox = this.getHitbox();
+      } else{this.hammerHitbox = null;}
+      this.setAction(this.currentAnim);
+    }else if (this.hurtTimer) {
       this.setAction("hurt");
       this.walkShake = 0;
     } else if(movement[0]!=0) {
@@ -853,6 +858,10 @@ class Executioner extends PhysicsEntity {
   
   render(surf, offset=[0, 0]) {
     super.render(surf, offset);
+    if(this.hammerHitbox) {
+      surf.fillStyle = "green";
+      surf.fillRect(this.hammerHitbox.x - offset[0], this.hammerHitbox.y - offset[1], this.hammerHitbox.width, this.hammerHitbox.height);
+    }
   }
 }
 
@@ -879,9 +888,13 @@ class Player extends PhysicsEntity {
     this.comboTimer = 60;
     this.atkHitbox = null;
     this.doubleTapCounter = 0;
-    this.doubleTapTimer = 60;
+    this.doubleTapTimer = 90;
     this.attackPressed = false;
     this.dashAttack = 0;
+    this.strongAttack = 0;
+    this.ultShake = false;
+    
+    this.pProjectiles = [];
   }
   attack() {
     if (this.attacking) return;
@@ -901,6 +914,16 @@ class Player extends PhysicsEntity {
     this.currentAttackIndex = (this.currentAttackIndex + 1) % this.attacks.length;
     // Reset combo timer
     this.comboTimer = 60;
+  }
+  
+  strongAtk() {
+    if(!this.strongAttack) {
+      this.strongAttack = 110;
+    }
+  }
+  
+  throwProjectile() {
+    
   }
   
   getHitbox() {
@@ -946,6 +969,7 @@ class Player extends PhysicsEntity {
     if (this.invincible) this.invincible--;
     if(this.attacking) this.attacking -= 1;
     if(this.dashAttack) this.dashAttack -= 1;
+    if(this.strongAttack) this.strongAttack -= 1;
     if(this.comboTimer) {
       this.comboTimer = Math.max(0, this.comboTimer - 1);
       if(this.comboTimer === 0) {
@@ -994,10 +1018,37 @@ class Player extends PhysicsEntity {
       this.dashAttack = 96;
     }
     
+    if(this.strongAttack) {
+      this.setAction("strongAttack");
+      if(this.strongAttack == 100) {
+        this.velocity[1] = -5;
+        this.velocity[0] = this.flip ? -3.5 : 3.5;
+      }
+      if(this.strongAttack == 60) {
+        this.velocity[1] = 10;
+      }
+      if(this.grounded && this.strongAttack < 40 && !this.ultShake) {
+        this.game.screenShake = Math.max(30, this.game.screenShake);
+        this.ultShake = true;
+      }''
+    }
+    
+    if(!this.strongAttack) {
+      this.ultShake = false;
     if (this.dashAttack) {
+      if(this.airTime > 4) {
+        this.dashAttack = 0;
+      }
       this.setAction("dashAttack");
       if (this.dashAttack == 60) {
-        this.dash();
+        this.velocity[0] = this.flip?-10:10;
+      }
+      if(this.dashAttack <= 24) {
+        if(this.flip) {
+          this.velocity[0] = Math.min(0, this.velocity[0] + 0.2);
+        } else {
+          this.velocity[0] = Math.max(0, this.velocity[0] - 0.2);
+        }
       }
     }else if (Math.abs(this.dashing) > 50) {
       if (this.action !== "dash") {
@@ -1023,7 +1074,8 @@ class Player extends PhysicsEntity {
       } else {
       this.setAction("idle");
       }
-    }
+    }}
+    
     //to make dash particle spawn at player
     let pPos = [
       this.rect().centerX + (this.flip? -7:7), this.rect().centerY
@@ -1128,13 +1180,6 @@ class Player extends PhysicsEntity {
   
 }
 
-/*class Player2 extends Player {
-  constructor(game, pos, size) {
-    super(game, pos, size);
-  }
-}
-
-*/
 // --------------------- GAME -----------------------
 
 class Game {
@@ -1167,7 +1212,6 @@ class Game {
     this.lastTime = performance.now();
   }
   
-
   async assetLoadAll() {
     this.assets = {
       grass: await loadImages("tiles/grass", 8),
@@ -1187,6 +1231,7 @@ class Game {
       playerattack2: new Animation(await cutImages("entities/player1/attack2.png", 5), 8),
       playerattack3: new Animation(await cutImages("entities/player1/attack3.png", 5), 8),
       playerdashAttack: new Animation(await cutImages("entities/player1/dashAttack.png", 9), 8),
+      playerstrongAttack: new Animation(await cutImages("entities/player1/strongAttack.png", 11), 10),
       playerwallSlide: new Animation(await loadImages("entities/player/wall_slide", 0)),
       particleleaf: new Animation(await loadImages("particles/leaf", 17), 20, false),
       particledash: new Animation(await loadImages("particles/particle", 3), 6, false),
@@ -1231,7 +1276,6 @@ class Game {
     await this.tilemap.load(`data/maps/${level}.json`);
     
     this.projectiles = [];
-    
     this.particles = [];
     this.sparks = [];
     this.scroll = [0, 0];
@@ -1424,6 +1468,18 @@ class Game {
     
     this.tilemap.render(this.vctx, this.renderScroll);
     
+    //Player Projectile Render
+    for (let i = this.player.pProjectiles.length - 1; i >= 0; i--)
+    {
+      const p = this.player.pProjectiles[i];
+      const img = this.assets.pProjectile;
+      this.vctx.drawImage(img,
+      p[0][0] - img.width / 2 - this.renderScroll[0],
+      p[0][1] - img.height / 2 - this.renderScroll[1],
+      img.width * 2,
+      img.height * 2
+      );
+    }
     
     //Projectile Render
     for (let i = this.projectiles.length - 1; i >= 0; i--)
@@ -1552,6 +1608,9 @@ window.addEventListener("load", () => {
     document.getElementById("attackBtn").addEventListener("touchstart", () => {
       game.player.attack();
       game.player.attackPressed = true;
+    });
+    document.getElementById("ultBtn").addEventListener("touchstart", () => {
+      game.player.strongAtk();
     });
   })();
 });
